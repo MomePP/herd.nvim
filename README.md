@@ -96,19 +96,20 @@ Also available as `:Herd [toggle|select|send]` and the Lua API
 
 `herd` can take you **to** an agent, but it **cannot bring you back** — once the agent
 pane is focused, Neovim no longer receives keystrokes, so `<leader>` can't reach it.
-That half belongs to herdr. Bind it in `~/.config/herdr/config.toml`:
+That half belongs to herdr.
 
-```toml
-[keys]
-last_pane = "prefix+tab"   # Ctrl-b Tab from the agent → back to nvim
-```
-
-So the full loop is symmetric:
+herd spawns the agent as a **split in nvim's tab** (nvim-left / agent-right), so use
+herdr's **directional pane focus** — it's tab-scoped, so it always lands on the right
+pane regardless of which workspace you're in (unlike `last_pane`, which is global):
 
 ```
-nvim  ──<leader><Tab>──▶  agent (fullscreen)
-nvim  ◀──Ctrl-b Tab────   agent
+nvim  ──<leader>;──▶  agent   (toggle: cwd-aware, fullscreen)
+nvim  ◀──prefix+h──   agent   (focus the pane to the left)
+nvim  ──prefix+l──▶   agent   (focus the pane to the right)
 ```
+
+> Avoid herdr's `last_pane` / `cycle_pane_*` for this — they're global / cycle-based,
+> so after switching workspaces they won't reliably return to *this* project's agent.
 
 Same `Tab` gesture both ways — two different owners, because herdr is the host.
 

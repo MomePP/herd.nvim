@@ -86,7 +86,10 @@ end
 ---@param def herd.Tool
 ---@return herd.Agent?
 function M.spawn(name, cwd, def)
-  local args = { 'agent', 'start', name, '--cwd', cwd, '--no-focus' }
+  -- Split to the right of the focused (nvim) pane so the agent lives in nvim's
+  -- tab, nvim-left / agent-right. The return trip is then tab-scoped directional
+  -- focus (Ctrl-a h/l) — reliable across workspace switches, unlike global last_pane.
+  local args = { 'agent', 'start', name, '--cwd', cwd, '--no-focus', '--split', 'right' }
   for k, v in pairs(def.env or {}) do
     vim.list_extend(args, { '--env', ('%s=%s'):format(k, tostring(v)) })
   end
