@@ -80,16 +80,23 @@ function M.next_name(tool)
   return tool .. '_' .. i
 end
 
---- Spawn an agent in the herdr server.
+--- Clone slot name: slot 1 is the base, slot n>1 is `base_n`.
+---@param base string
+---@param n integer
+---@return string
+function M.slot_name(base, n)
+  return n <= 1 and base or (base .. '_' .. n)
+end
+
+--- Spawn an agent in the herdr server. nvim is the host, so the agent is NOT
+--- tiled next to nvim — herdr places its pane server-side and we only ever
+--- `attach` to it from an nvim float.
 ---@param name string unique agent name
 ---@param cwd string
 ---@param def herd.Tool
 ---@return herd.Agent?
 function M.spawn(name, cwd, def)
-  -- Split to the right of the focused (nvim) pane so the agent lives in nvim's
-  -- tab, nvim-left / agent-right. The return trip is then tab-scoped directional
-  -- focus (Ctrl-a h/l) — reliable across workspace switches, unlike global last_pane.
-  local args = { 'agent', 'start', name, '--cwd', cwd, '--no-focus', '--split', 'right' }
+  local args = { 'agent', 'start', name, '--cwd', cwd, '--no-focus' }
   for k, v in pairs(def.env or {}) do
     vim.list_extend(args, { '--env', ('%s=%s'):format(k, tostring(v)) })
   end
@@ -99,21 +106,24 @@ function M.spawn(name, cwd, def)
   return res and res.agent
 end
 
----@param name string agent name or pane id
-function M.focus(name)
-  M.run({ 'agent', 'focus', name }, { quiet = true })
+--- argv to attach an nvim :terminal to a running agent's PTY (clean stream).
+---@param name string
+---@return string[]
+function M.attach_argv(name)
+  return { 'herdr', 'agent', 'attach', name }
 end
 
---- Zoom a pane fullscreen (no-op unless the tab has ≥2 panes).
----@param pane string
-function M.zoom(pane)
-  M.run({ 'pane', 'zoom', '--on', '--pane', pane }, { quiet = true })
+--- argv to open herdr's full TUI (dashboard escape hatch).
+---@return string[]
+function M.dashboard_argv()
+  return { 'herdr' }
 end
 
----@param pane string
+--- Send literal text to an agent (no Enter — review then submit).
+---@param name string
 ---@param text string
-function M.send_text(pane, text)
-  M.run({ 'pane', 'send-text', pane, text })
+function M.agent_send(name, text)
+  M.run({ 'agent', 'send', name, text })
 end
 
 return M
