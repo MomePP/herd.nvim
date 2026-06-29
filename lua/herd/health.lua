@@ -1,44 +1,36 @@
-local M = {}
-
 local Herdr = require('herd.herdr')
 local Config = require('herd.config')
 
-function M.check()
-  local h = vim.health
-  h.start('herd.nvim')
+local M = {}
 
-  if not Herdr.installed() then
-    h.error('herdr not found on $PATH', {
-      'Install herdr: https://herdr.dev/docs/install/  (or `brew install herdr`)',
-    })
+function M.check()
+  vim.health.start('herd')
+
+  if Herdr.installed() then
+    vim.health.ok('`herdr` found on $PATH')
+  else
+    vim.health.error('`herdr` not found on $PATH', { 'Install herdr: https://herdr.dev/docs/install/' })
     return
   end
-  local ver = (Herdr.run({ '--version' }, { quiet = true }) or 'unknown'):gsub('%s+$', '')
-  h.ok('herdr found: ' .. ver)
 
   if Herdr.server_running() then
-    h.ok('herdr server is running')
+    vim.health.ok('herdr server is running')
   else
-    h.warn('no herdr server running', {
-      'Launch `herdr` — herd targets the default-session socket your client uses',
-    })
-  end
-
-  if vim.env.HERDR_PANE_ID then
-    h.ok('nvim is inside a herdr pane (' .. vim.env.HERDR_PANE_ID .. ')')
-  else
-    h.warn('nvim is not inside a herdr pane', {
-      'herd is designed for nvim hosted in a herdr pane (herdr is the multiplexer)',
-    })
+    vim.health.warn('herdr server not running', { 'Launch `herdr` (it can run as a backend daemon).' })
   end
 
   local tools = Config.get().tools
-  local names = vim.tbl_keys(tools)
-  if #names > 0 then
-    table.sort(names)
-    h.ok(('%d tool(s) configured: %s'):format(#names, table.concat(names, ', ')))
+  if vim.tbl_isempty(tools) then
+    vim.health.warn('no tools configured', { 'Add tools = { claude = { cmd = { "claude" } } } to setup().' })
   else
-    h.warn('no tools configured', { 'Add tools in require("herd").setup({ tools = { ... } })' })
+    for name, def in pairs(tools) do
+      local exe = def.cmd and def.cmd[1]
+      if exe and vim.fn.executable(exe) == 1 then
+        vim.health.ok(('tool %q → %s'):format(name, exe))
+      else
+        vim.health.warn(('tool %q: %q not executable'):format(name, tostring(exe)))
+      end
+    end
   end
 end
 
