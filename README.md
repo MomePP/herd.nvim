@@ -114,7 +114,7 @@ Lua API `require('herd').{toggle,select,send,dashboard,spawn}()`.
 | placement | dedicated `herd.nvim` workspace, found-or-created via `herdr workspace list` / `herdr workspace create --no-focus --label herd.nvim` |
 | show in nvim | nvim float running `herdr agent attach <pane-id>` |
 | send selection | `herdr agent send <pane-id> <text>` |
-| dashboard | focus the dedicated `herd` workspace (`herdr workspace focus <ws>`) |
+| dashboard | focus the dedicated `herd.nvim` workspace (`herdr workspace focus <ws>`) |
 
 Spawned agents are placed in a dedicated herdr workspace (default label `herd.nvim`) that lives off your project workspaces/tabs — so they never tile next to nvim when nvim runs inside a herdr session. The workspace is found-or-created automatically on each spawn and reused across spawns. When an agent exits herdr leaves its (now agentless) tab behind, so herd **reaps dead tabs on the next spawn**. The label is configurable via the `workspace` option.
 

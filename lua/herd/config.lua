@@ -29,19 +29,23 @@ local M = {}
 ---@type herd.Config
 local defaults = {
   tools = {},
-  workspace = 'herd',
+  workspace = 'herd.nvim', -- dedicated workspace label; signals nvim-spawned agents
   keys = {
-    toggle = '<leader><Tab>',    -- (normal) toggle this cwd's agent; count = slot
-    send = '<leader><Tab>',      -- (visual) send selection to the active agent
-    hide = '<leader><Tab>',      -- (terminal) hide the float from inside
-    select = '<leader>;',        -- (normal) grouped picker
-    dashboard = '<leader>\\',    -- (normal) focus the dedicated herd workspace
-    newline = '<S-CR>',          -- (terminal) send a CLI newline (kitty Shift-Enter) to the agent
+    -- sidekick.nvim-style scheme: one key drives the active agent across modes.
+    toggle = '<leader>s',  -- (normal) toggle this cwd's agent; count = slot
+    send = '<leader>s',    -- (visual) send selection to the active agent
+    hide = '<leader>s',    -- (terminal) hide the float from inside
+    select = '<leader>S',  -- (normal) grouped picker (switch / spawn)
+    dashboard = false,     -- (normal) focus the herd workspace; off (use :Herd dashboard)
+    newline = '<S-CR>',    -- (terminal) send a CLI newline (kitty Shift-Enter) to the agent
   },
   win = {
-    width = 0.9,
-    height = 0.9,
-    border = 'rounded',
+    -- fullscreen float with an invisible border (only the bottom row is kept, for
+    -- the footer). Set `winhighlight` to your terminal highlight groups for a
+    -- transparent overlay (e.g. Snacks: Normal:SnacksTerminalNormal,...).
+    width = 1,
+    height = 1,
+    border = { '', '', '', '', ' ', ' ', ' ', '' },
     footer = true,
     winblend = 0,
     winhighlight = '',
