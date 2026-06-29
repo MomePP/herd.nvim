@@ -66,7 +66,6 @@ function M.open(name, opts)
   M.reg[name] = { buf = buf }
   local win = open_float(buf, footer)
   M.reg[name].win = win
-  vim.api.nvim_set_current_win(win)
   -- termopen acts on the current buffer (the float's buffer).
   M.spawn_term(Herdr.attach_argv(name), function()
     local cur = M.reg[name]

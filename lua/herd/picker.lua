@@ -3,8 +3,6 @@
 --- mirror of herdr's agent dashboard.
 local Herdr = require('herd.herdr')
 local Config = require('herd.config')
-local Terminal = require('herd.terminal')
-
 local M = {}
 
 ---@class herd.PickItem

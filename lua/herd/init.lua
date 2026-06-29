@@ -64,8 +64,12 @@ function M.toggle()
   end
   local count = vim.v.count
   local agents = Herdr.agents()
-  local a = (count > 0) and Target.by_slot(agents, cwd(), count)
-    or Target.current(agents, cwd(), M.target)
+  local a
+  if count > 0 then
+    a = Target.by_slot(agents, cwd(), count)
+  else
+    a = Target.current(agents, cwd(), M.target)
+  end
   if not a then
     return M.select()
   end
@@ -103,7 +107,7 @@ end
 --- Send the visual selection to the active agent (no Enter — review then submit).
 function M.send()
   local text = selection()
-  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'n', false)
+  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'nx', false)
   if text == '' then
     return
   end
