@@ -148,6 +148,7 @@ function M.send()
   end
   M.target = t
   Herdr.send_text(t.pane_id, text) -- multi-line passed as one argv
+  show(t) -- focus (and zoom) the agent so you land in the CLI to review/submit
   vim.notify('herd → ' .. t.name)
 end
 
