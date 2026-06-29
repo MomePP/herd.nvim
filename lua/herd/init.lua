@@ -156,9 +156,16 @@ end
 function M.setup(opts)
   local cfg = Config.setup(opts)
   local map = vim.keymap.set
-  map('n', cfg.keys.toggle, M.toggle, { desc = 'herd: toggle agent (fullscreen)' })
-  map('x', cfg.keys.send, M.send, { desc = 'herd: send selection' })
-  map('n', cfg.keys.select, M.select, { desc = 'herd: select / spawn agent' })
+  -- Any key can be set to false (or nil) to skip its mapping.
+  if cfg.keys.toggle then
+    map('n', cfg.keys.toggle, M.toggle, { desc = 'herd: toggle agent (fullscreen)' })
+  end
+  if cfg.keys.send then
+    map('x', cfg.keys.send, M.send, { desc = 'herd: send selection' })
+  end
+  if cfg.keys.select then
+    map('n', cfg.keys.select, M.select, { desc = 'herd: select / spawn agent' })
+  end
 
   vim.api.nvim_create_user_command('Herd', function(a)
     local sub = a.args ~= '' and a.args or 'toggle'
