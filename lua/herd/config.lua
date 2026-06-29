@@ -5,26 +5,41 @@ local M = {}
 ---@field env? table<string, string>    extra environment for the agent process
 
 ---@class herd.Keys
----@field toggle string|false  normal: go to a live agent / spawn (false = disabled)
----@field send string|false    visual: send the selection to the active agent
----@field select string|false  normal: switch to an agent, or spawn a tool
+---@field toggle string|false   normal: toggle this cwd's agent float (count = slot)
+---@field send string|false     visual: send the selection to the active agent
+---@field hide string|false     terminal: hide the float from inside
+---@field select string|false   normal: grouped picker (switch / spawn)
+---@field dashboard string|false normal: pop herdr's full TUI in a float
+
+---@class herd.Win
+---@field width number    fraction of columns (0..1)
+---@field height number   fraction of lines (0..1)
+---@field border string   nvim_open_win border style
+---@field footer boolean  show "Herd: <agent>" footer
+---@field winblend number terminal-window blend
 
 ---@class herd.Config
 ---@field tools table<string, herd.Tool>
 ---@field keys herd.Keys
----@field zoom boolean    zoom the agent pane fullscreen on toggle/spawn
+---@field win herd.Win
 
 ---@type herd.Config
 local defaults = {
   tools = {},
   keys = {
-    -- herd is a spawner; navigation (nvim <-> agent) is left to your multiplexer
-    -- (e.g. herdr directional pane focus). Set `toggle` to a key to opt back in.
-    toggle = false, -- (normal) jump to this cwd's agent / spawn — off by default
-    send = '<leader><Tab>', -- (visual) send selection to the active agent
-    select = '<leader><Tab>', -- (normal) pick a running agent or spawn a tool
+    toggle = '<leader><Tab>',    -- (normal) toggle this cwd's agent; count = slot
+    send = '<leader><Tab>',      -- (visual) send selection to the active agent
+    hide = '<leader><Tab>',      -- (terminal) hide the float from inside
+    select = '<leader>;',        -- (normal) grouped picker
+    dashboard = '<leader>\\',    -- (normal) pop herdr's full TUI
   },
-  zoom = true,
+  win = {
+    width = 0.9,
+    height = 0.9,
+    border = 'rounded',
+    footer = true,
+    winblend = 0,
+  },
 }
 
 ---@type herd.Config?
