@@ -26,7 +26,7 @@ function M.items(agents, tools)
   for _, a in ipairs(running) do
     items[#items + 1] = {
       agent = a,
-      label = ('%s  %s  [%s]'):format(a.name, vim.fn.fnamemodify(a.cwd or '', ':~'), a.status or '?'),
+      label = ('%s  [%s]'):format(a.name, a.status or '?'),
     }
   end
 
