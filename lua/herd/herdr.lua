@@ -106,6 +106,28 @@ function M.ensure_workspace(label)
   return created and created.workspace and created.workspace.workspace_id
 end
 
+--- Reap dead tabs in `ws_id`: when an agent's process exits, herdr removes the
+--- pane but leaves the (now agentless) tab behind. Close every tab in the
+--- workspace that no live agent occupies. `keep_tab` is never closed (the tab of
+--- an agent just spawned, which may not be in `agent list` yet).
+---@param ws_id string
+---@param keep_tab? string tab id to always keep
+function M.prune_workspace(ws_id, keep_tab)
+  local agents = M.api({ 'agent', 'list' }, { quiet = true })
+  local live = {}
+  for _, a in ipairs(agents and agents.agents or {}) do
+    if a.tab_id then
+      live[a.tab_id] = true
+    end
+  end
+  local tabs = M.api({ 'tab', 'list', '--workspace', ws_id }, { quiet = true })
+  for _, t in ipairs(tabs and tabs.tabs or {}) do
+    if t.tab_id and t.tab_id ~= keep_tab and not live[t.tab_id] then
+      M.run({ 'tab', 'close', t.tab_id }, { quiet = true })
+    end
+  end
+end
+
 --- Label of the focused workspace (nvim's project at spawn time), excluding the
 --- given label (the herd workspace itself). Lets spawned agents tag their tab
 --- with the originating project. Returns nil if unresolved.

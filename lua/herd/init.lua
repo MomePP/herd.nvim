@@ -63,6 +63,9 @@ function M.spawn(tool)
   if not agent then
     return -- error already surfaced by Herdr.run
   end
+  if ws then
+    Herdr.prune_workspace(ws, agent.tab_id) -- reap tabs left by killed agents
+  end
   show(agent)
   vim.notify('herd: spawned ' .. agent.name)
 end

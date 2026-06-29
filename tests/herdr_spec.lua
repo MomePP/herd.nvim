@@ -166,4 +166,26 @@ describe('herd.herdr', function()
     assert.is_nil(Herdr.focused_workspace_label('herd'))
     Herdr.api = saved
   end)
+
+  it('prune_workspace closes agentless tabs, keeping live agents and keep_tab', function()
+    local closed = {}
+    local saved_api, saved_run = Herdr.api, Herdr.run
+    Herdr.api = function(args)
+      if args[1] == 'agent' and args[2] == 'list' then
+        return { agents = { { name = 'claude', tab_id = 'wH:t1' } } } -- t1 has a live agent
+      end
+      if args[1] == 'tab' and args[2] == 'list' then
+        return { tabs = { { tab_id = 'wH:t1' }, { tab_id = 'wH:t2' }, { tab_id = 'wH:t3' } } }
+      end
+      return {}
+    end
+    Herdr.run = function(args)
+      if args[1] == 'tab' and args[2] == 'close' then
+        closed[#closed + 1] = args[3]
+      end
+    end
+    Herdr.prune_workspace('wH', 'wH:t3') -- keep t3 (just-spawned, maybe not in list yet)
+    assert.are.same({ 'wH:t2' }, closed) -- t1 live, t3 kept, only dead t2 closed
+    Herdr.api, Herdr.run = saved_api, saved_run
+  end)
 end)
