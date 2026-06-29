@@ -129,10 +129,12 @@ function M.spawn(name, cwd, def, workspace)
 end
 
 --- argv to attach an nvim :terminal to a running agent's PTY (clean stream).
----@param name string
+--- `target` should be the unambiguous pane id (a bare tool name like "claude"
+--- can be ambiguous when herdr also detects same-tool processes).
+---@param target string pane id (preferred) or unique agent name
 ---@return string[]
-function M.attach_argv(name)
-  return { 'herdr', 'agent', 'attach', name }
+function M.attach_argv(target)
+  return { 'herdr', 'agent', 'attach', target }
 end
 
 --- Focus a workspace in the herdr client (used to surface the agent pool).
@@ -142,10 +144,10 @@ function M.focus_workspace(id)
 end
 
 --- Send literal text to an agent (no Enter — review then submit).
----@param name string
+---@param target string pane id (preferred) or unique agent name
 ---@param text string
-function M.agent_send(name, text)
-  M.run({ 'agent', 'send', name, text })
+function M.agent_send(target, text)
+  M.run({ 'agent', 'send', target, text })
 end
 
 return M

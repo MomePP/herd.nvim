@@ -39,7 +39,7 @@ local function show(a)
   -- and the attach process gets killed (float blinks shut). A scheduled open runs
   -- after the callback returns and is reliable from every caller.
   vim.schedule(function()
-    Terminal.open(a.name, { cwd = a.cwd })
+    Terminal.open(a.name, { cwd = a.cwd, pane = a.pane_id })
   end)
 end
 
@@ -89,7 +89,7 @@ function M.toggle()
     return M.select()
   end
   M.target = a.name
-  Terminal.toggle(a.name, { cwd = a.cwd })
+  Terminal.toggle(a.name, { cwd = a.cwd, pane = a.pane_id })
 end
 
 --- Grouped picker: switch to a running agent, or spawn a configured tool.
@@ -134,9 +134,9 @@ function M.send()
     return vim.notify('herd: no agents running in this project', vim.log.levels.WARN)
   end
   M.target = a.name
-  Herdr.agent_send(a.name, text)
+  Herdr.agent_send(a.pane_id, text) -- target the unambiguous pane, not the name
   vim.schedule(function()
-    Terminal.open(a.name, { cwd = a.cwd }) -- land in the agent to submit
+    Terminal.open(a.name, { cwd = a.cwd, pane = a.pane_id }) -- land in the agent to submit
   end)
   vim.notify('herd → ' .. a.name)
 end

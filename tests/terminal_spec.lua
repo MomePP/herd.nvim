@@ -22,6 +22,12 @@ describe('herd.terminal', function()
     assert.are.same({ 'herdr', 'agent', 'attach', 'claude' }, spawned[1])
   end)
 
+  it('open attaches by opts.pane (unambiguous) when given, not the name', function()
+    Terminal.open('claude', { pane = 'wC:pD' })
+    assert.is_truthy(Terminal.reg['claude']) -- still keyed by name
+    assert.are.same({ 'herdr', 'agent', 'attach', 'wC:pD' }, spawned[1])
+  end)
+
   it('hide closes the window but keeps the buffer (agent survives)', function()
     Terminal.open('claude')
     local buf = Terminal.reg['claude'].buf

@@ -49,8 +49,12 @@ local function open_float(buf, footer_text)
 end
 
 --- Show the agent's float, reusing its buffer/job if it already exists.
+--- The registry is keyed by `name` (herd's identity), but the attach targets
+--- `opts.pane` (the herdr pane id) — herdr's `attach <name>` is ambiguous when a
+--- detected agent shares the tool's label (e.g. several "claude"), so we attach
+--- by the unique pane id instead.
 ---@param name string
----@param opts? { cwd?: string }
+---@param opts? { cwd?: string, pane?: string }
 function M.open(name, opts)
   opts = opts or {}
   local footer = 'Herd: ' .. name .. (opts.cwd and ('  ' .. vim.fn.fnamemodify(opts.cwd, ':~')) or '')
@@ -69,8 +73,9 @@ function M.open(name, opts)
   M.reg[name] = { buf = buf }
   local win = open_float(buf, footer)
   M.reg[name].win = win
-  -- termopen acts on the current buffer (the float's buffer).
-  M.spawn_term(Herdr.attach_argv(name), function()
+  -- termopen acts on the current buffer (the float's buffer). Attach by the
+  -- unambiguous pane id when we have it, falling back to the name.
+  M.spawn_term(Herdr.attach_argv(opts.pane or name), function()
     local cur = M.reg[name]
     if cur and cur.win and vim.api.nvim_win_is_valid(cur.win) then
       pcall(vim.api.nvim_win_close, cur.win, true)
@@ -98,7 +103,7 @@ function M.is_open(name)
 end
 
 ---@param name string
----@param opts? { cwd?: string }
+---@param opts? { cwd?: string, pane?: string }
 function M.toggle(name, opts)
   if M.is_open(name) then
     M.hide(name)
