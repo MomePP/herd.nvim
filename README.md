@@ -63,6 +63,8 @@ require('herd').setup({
   -- Spawnable agents. Key = tool name, `cmd` = argv, `env` = extra environment.
   tools = {},
 
+  workspace = 'herd',  -- herdr workspace label that hosts spawned agents (kept off your project tabs)
+
   -- Keymaps. Set any to `false` to disable it.
   keys = {
     toggle    = '<leader><Tab>',  -- (normal)   toggle this cwd's agent float; count = slot
@@ -103,10 +105,13 @@ Lua API `require('herd').{toggle,select,send,dashboard,spawn}()`.
 | What | herdr command |
 | --- | --- |
 | discover agents | `herdr agent list` |
-| spawn | `herdr agent start <name> --cwd <p> --no-focus -- <argv>` |
+| spawn | `herdr agent start <name> --cwd <p> --workspace <ws> --no-focus -- <argv>` |
+| placement | dedicated `herd` workspace, found-or-created via `herdr workspace list` / `herdr workspace create --no-focus --label herd` |
 | show in nvim | nvim float running `herdr agent attach <name>` |
 | send selection | `herdr agent send <name> <text>` |
 | dashboard | `herdr` (full TUI) |
+
+Spawned agents are placed in a dedicated herdr workspace (default label `herd`) that lives off your project workspaces/tabs — so they never tile next to nvim when nvim runs inside a herdr session. The workspace is found-or-created automatically on each spawn; herdr auto-closes emptied tabs and the workspace is reused across spawns. The label is configurable via the `workspace` option.
 
 Discovery is by agent **name**, which herdr preserves through its native agent
 detection — so the tool you spawn is the tool `herd` finds again. Names are

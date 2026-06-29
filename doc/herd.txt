@@ -54,6 +54,11 @@ Options ~                                                       *herd-config*
               footer   = true     show "Herd: <agent>" footer
               winblend = 0
 
+    workspace  string                                     (default: "herd")
+               herdr workspace label for spawned agents; herd.nvim
+               finds or creates this workspace on each spawn to keep agents
+               off your project workspaces/tabs. Configurable.
+
 ==============================================================================
 MAPPINGS                                                      *herd-mappings*
 
@@ -68,7 +73,9 @@ MAPPINGS                                                      *herd-mappings*
 PERSISTENCE                                                 *herd-persistence*
 
 herdr owns each agent's PTY. Hiding the float (or closing nvim entirely)
-only detaches the nvim terminal — the agent keeps running in herdr. To
+only detaches the nvim terminal — the agent keeps running in herdr. Spawned
+agents live in a dedicated herdr workspace (default label "herd"), off your
+project workspaces/tabs; the workspace is found-or-created on each spawn. To
 reattach:
 
 - Run <leader>; (picker) — lists all live agents across all projects.

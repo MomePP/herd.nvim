@@ -233,9 +233,12 @@ require('herd').setup({
 
 - **Multi-line `herdr agent send`**: confirm newline handling for a multi-line
   visual selection (old code used `pane send-text` with multiline as one argv).
-- **Spawn placement with no attached herdr client** (pure-daemon case): confirm
-  `agent start` succeeds against the server when nvim is not itself inside a
-  herdr client, and that the server-side pane lands somewhere harmless.
+- ~~**Spawn placement with no attached herdr client**~~ **RESOLVED**: agents
+  are placed in a dedicated, found-or-created herdr workspace (label
+  `workspace`, default `'herd'`) via `agent start --workspace <id>
+  --no-focus`. herdr auto-closes emptied tabs; the workspace is reused across
+  spawns. This keeps agents off nvim's pane when nvim runs inside a herdr
+  session.
 - **Attach reflow**: confirm the attached agent reflows to the nvim float's size
   on `VimResized` / window resize.
 - **Double-attach mirroring**: viewing the same agent in the popped herdr TUI
