@@ -39,20 +39,24 @@ Options ~                                                       *herd-config*
     tools   table<string, { cmd: string[], env?: table }>   (default: {})
             Spawnable agents. The key is the tool name; `cmd` is the argv.
 
-    keys    { toggle, send, hide, select, dashboard }
+    keys    { toggle, send, hide, select, dashboard, newline }
             Set any to false to disable. Defaults:
-              toggle    = "<leader><Tab>"   (normal)   toggle agent float
+              toggle    = "<leader><Tab>"   (normal)   toggle agent float; count = slot
               send      = "<leader><Tab>"   (visual)   send selection
               hide      = "<leader><Tab>"   (terminal) hide the float
               select    = "<leader>;"       (normal)   grouped picker
-              dashboard = "<leader>\"       (normal)   herdr full TUI
+              dashboard = "<leader>\"       (normal)   focus herd workspace in herdr
+              newline   = "<S-CR>"          (terminal) send CLI newline (Shift-Enter)
 
-    win     { width, height, border, footer, winblend }
-              width    = 0.9      fraction of &columns
-              height   = 0.9      fraction of &lines
-              border   = "rounded"
-              footer   = true     show "Herd: <agent>" footer
-              winblend = 0
+    win     { width, height, border, footer, winblend, winhighlight }
+              width        = 0.9      fraction of &columns
+              height       = 0.9      fraction of &lines
+              border       = "rounded"
+              footer       = true     show "Herd: <agent>" footer
+              winblend     = 0
+              winhighlight = ""       winhighlight string applied to the float
+                                      (e.g. "Normal:MyTermBg" for a
+                                      transparent/terminal-styled overlay)
 
     workspace  string                                     (default: "herd")
                herdr workspace label for spawned agents; herd.nvim
@@ -62,12 +66,25 @@ Options ~                                                       *herd-config*
 ==============================================================================
 MAPPINGS                                                      *herd-mappings*
 
-    <leader><Tab>   (normal)    Toggle this cwd's agent float; count = slot.
-                                Falls back to picker if no agent runs here.
-    <leader><Tab>   (visual)    Send selection to the active agent (no Enter).
-    <leader><Tab>   (terminal)  Hide the float from inside.
-    <leader>;       (normal)    Grouped picker: switch agent or spawn tool.
-    <leader>\       (normal)    focus the dedicated herd workspace (`herdr workspace focus <ws>`).
+    <leader><Tab>   (normal)    Toggle this cwd's agent float. <count><key> targets
+                                slot N. An empty slot spawns the inferred tool's
+                                next clone (inferred: current target's base →
+                                first project agent's base → sole configured tool
+                                → else picker). Falls back to picker when no
+                                agent runs here.
+    <leader><Tab>   (visual)    Send selection to the active agent (no Enter
+                                appended). The float opens so you can review
+                                and submit.
+    <leader><Tab>   (terminal)  Hide the float from inside (buffer-local map).
+    <leader>;       (normal)    Grouped picker (current project only): switch
+                                to a running agent or spawn a configured tool.
+                                Rows show "name  [status]".
+    <leader>\       (normal)    Focus the dedicated herd workspace in herdr
+                                (`herdr workspace focus <id>`), surfacing all
+                                agents in herdr's native view.
+    <S-CR>          (terminal)  Send a CLI newline (kitty Esc[13;2u) to the
+                                agent — buffer-local map for multi-line prompts
+                                without submitting.
 
 ==============================================================================
 PERSISTENCE                                                 *herd-persistence*
@@ -78,9 +95,10 @@ agents live in a dedicated herdr workspace (default label "herd"), off your
 project workspaces/tabs; the workspace is found-or-created on each spawn. To
 reattach:
 
-- Run <leader>; (picker) — lists all live agents across all projects.
-- Run `:Herd select` or `:Herd toggle`.
-- Open the dashboard (<leader>\) for the full herdr agent view.
+- Run <leader>; (picker) or `:Herd select` — lists agents for the current project.
+- Run `:Herd toggle` to reopen the float for the current project's agent.
+- Use <leader>\ (dashboard) to focus the herd workspace in herdr and surface
+  agents from all projects in herdr's native view.
 
 Agents are rediscovered via `herdr agent list`; as long as the herdr server
 is running, sessions persist across nvim restarts.

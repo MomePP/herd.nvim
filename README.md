@@ -19,8 +19,8 @@ keybinds; there is no multiplexer round-trip.
 - 🚀 **Spawn + fullscreen float** — picker spawns a tool and shows it in a 90 % nvim float.
 - 🔄 **Toggle** — `<leader><Tab>` (normal) opens/closes this cwd's agent; `count` targets a numbered slot.
 - ✂️ **Send selection** — visual `<leader><Tab>` pushes the selection to the active agent (no Enter — review, then submit).
-- 🗂 **Grouped picker** — `<leader>;` lists all running agents (across all projects) and configured tools.
-- 📊 **Dashboard escape-hatch** — `<leader>\` pops herdr's full TUI in a float for anything beyond a single agent.
+- 🗂 **Grouped picker** — `<leader>;` lists running agents **for the current project** and configured tools. Use the dashboard for a cross-project view.
+- 📊 **Dashboard** — `<leader>\` focuses the dedicated herd workspace in herdr, surfacing all agents in herdr's native view.
 - 💾 **Persistence** — agents survive closing the float and `:q`; herdr owns the process and rediscovers them via `herdr agent list`.
 - 🩺 **`:checkhealth herd`** — verifies herdr, the server, and your tools.
 - 🪶 **Tiny** — seven small Lua files, one external dependency (the `herdr` binary).
@@ -71,16 +71,18 @@ require('herd').setup({
     send      = '<leader><Tab>',  -- (visual)   send selection to the active agent
     hide      = '<leader><Tab>',  -- (terminal) hide the float from inside
     select    = '<leader>;',      -- (normal)   grouped picker: switch agent or spawn tool
-    dashboard = '<leader>\\',     -- (normal)   herdr full TUI in a float
+    dashboard = '<leader>\\',     -- (normal)   focus the dedicated herd workspace in herdr
+    newline   = '<S-CR>',         -- (terminal) send a CLI newline (kitty Shift-Enter) to the agent
   },
 
   -- Float window dimensions and style.
   win = {
-    width    = 0.9,       -- fraction of &columns
-    height   = 0.9,       -- fraction of &lines
-    border   = 'rounded',
-    footer   = true,      -- show "Herd: <agent>" footer
-    winblend = 0,
+    width       = 0.9,      -- fraction of &columns
+    height      = 0.9,      -- fraction of &lines
+    border      = 'rounded',
+    footer      = true,     -- show "Herd: <agent>" footer
+    winblend    = 0,
+    winhighlight = '',      -- e.g. 'Normal:MyTermBg' for a transparent/terminal-styled float
   },
 })
 ```
@@ -89,11 +91,12 @@ require('herd').setup({
 
 | Key | Mode | Action |
 | --- | --- | --- |
-| `<leader><Tab>` | normal | Toggle this cwd's agent float (count = slot). Falls back to picker if no agent runs here. |
-| `<leader><Tab>` | visual | Send the selection to the active agent (no Enter — review, then submit). |
+| `<leader><Tab>` | normal | Toggle this cwd's agent float. `<count><key>` targets slot N; an **empty slot spawns the inferred tool's next clone** (inferred from current target, first project agent, or sole configured tool — else opens the picker). |
+| `<leader><Tab>` | visual | Send the selection to the active agent (no Enter — the float opens so you can review and submit). |
 | `<leader><Tab>` | terminal | Hide the float from inside the agent. |
-| `<leader>;` | normal | Grouped picker: switch to any running agent, or spawn a configured tool. |
-| `<leader>\` | normal | Open herdr's full TUI dashboard in a float. |
+| `<leader>;` | normal | Grouped picker (**current project only**): switch to a running agent or spawn a configured tool. Rows show `name  [status]`. |
+| `<leader>\` | normal | Focus the dedicated herd workspace in herdr, surfacing all agents in herdr's native view. |
+| `<S-CR>` | terminal | Send a newline (kitty `Esc[13;2u`) to the agent — for multi-line prompts without submitting. |
 
 Also available as `:Herd [toggle|select|send|dashboard]`, `:Herd spawn <tool>`, and the
 Lua API `require('herd').{toggle,select,send,dashboard,spawn}()`.
@@ -117,6 +120,11 @@ Discovery is by agent **name**, which herdr preserves through its native agent
 detection — so the tool you spawn is the tool `herd` finds again. Names are
 server-global-unique, which is exactly why same-tool clones get numbered.
 
+The float can be styled as a fullscreen-transparent overlay by setting
+`win.winhighlight` to map float highlight groups to your terminal background groups
+(e.g. `'Normal:MyTermBg,FloatBorder:MyTermBg'`). This mirrors the look of
+sidekick.nvim when `winblend` is non-zero or terminal colors are remapped.
+
 ## ❓ FAQ
 
 **Is this the same as sidekick.nvim?**
@@ -127,9 +135,10 @@ prefer tmux/zellij as the backend, use sidekick.
 
 **Do agents survive closing the float or quitting nvim?**
 Yes. herdr owns the process; closing the float (or `:q`) only detaches the nvim
-terminal. Run `<leader>;` (picker) or `:Herd select` to reattach — the picker lists
-all live agents regardless of cwd. The dashboard (`<leader>\`) shows the full herdr
-agent view.
+terminal. Run `<leader>;` (picker) or `:Herd select` to reattach from the same
+project. For agents in other projects, use `<leader>\` (dashboard) to focus the
+herd workspace in herdr and see all agents there, then re-toggle from nvim once you
+change directory.
 
 **Nothing happens / "no herdr server running".**
 Launch `herdr` first (any terminal or as a headless daemon). Run `:checkhealth herd`.
