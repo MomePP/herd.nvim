@@ -22,10 +22,12 @@ local M = {}
 ---@field tools table<string, herd.Tool>
 ---@field keys herd.Keys
 ---@field win herd.Win
+---@field workspace string  herdr workspace label that hosts spawned agents
 
 ---@type herd.Config
 local defaults = {
   tools = {},
+  workspace = 'herd',
   keys = {
     toggle = '<leader><Tab>',    -- (normal) toggle this cwd's agent; count = slot
     send = '<leader><Tab>',      -- (visual) send selection to the active agent

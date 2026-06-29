@@ -17,6 +17,7 @@ describe('herd.config', function()
     assert.are.equal(0.9, c.win.height)
     assert.is_true(c.win.footer)
     assert.is_nil(c.zoom)
+    assert.are.equal('herd', c.workspace)
   end)
 
   it('merges user tools and overrides keys', function()

@@ -47,7 +47,8 @@ function M.spawn(tool)
   if not def then
     return vim.notify('herd: unknown tool ' .. tostring(tool), vim.log.levels.ERROR)
   end
-  local agent = Herdr.spawn(Herdr.next_name(tool), vim.fn.getcwd(), def)
+  local ws = Herdr.ensure_workspace(Config.get().workspace)
+  local agent = Herdr.spawn(Herdr.next_name(tool), vim.fn.getcwd(), def, ws)
   if not agent then
     return -- error already surfaced by Herdr.run
   end

@@ -88,15 +88,34 @@ function M.slot_name(base, n)
   return n <= 1 and base or (base .. '_' .. n)
 end
 
---- Spawn an agent in the herdr server. nvim is the host, so the agent is NOT
---- tiled next to nvim — herdr places its pane server-side and we only ever
---- `attach` to it from an nvim float.
+--- Find-or-create the dedicated workspace that hosts herd agents (kept off the
+--- user's project workspaces/tabs). Matched by label. Returns its id, or nil.
+---@param label string
+---@return string?
+function M.ensure_workspace(label)
+  local list = M.api({ 'workspace', 'list' }, { quiet = true })
+  for _, w in ipairs(list and list.workspaces or {}) do
+    if w.label == label then
+      return w.workspace_id
+    end
+  end
+  local created = M.api({ 'workspace', 'create', '--no-focus', '--label', label })
+  return created and created.workspace and created.workspace.workspace_id
+end
+
+--- Spawn an agent in the herdr server, placed in `workspace` (off nvim's view)
+--- when given. nvim hosts; the agent is only ever seen through the float that
+--- attaches to it.
 ---@param name string unique agent name
 ---@param cwd string
 ---@param def herd.Tool
+---@param workspace? string workspace id to place the agent in
 ---@return herd.Agent?
-function M.spawn(name, cwd, def)
+function M.spawn(name, cwd, def, workspace)
   local args = { 'agent', 'start', name, '--cwd', cwd, '--no-focus' }
+  if workspace then
+    vim.list_extend(args, { '--workspace', workspace })
+  end
   for k, v in pairs(def.env or {}) do
     vim.list_extend(args, { '--env', ('%s=%s'):format(k, tostring(v)) })
   end

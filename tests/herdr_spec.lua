@@ -47,17 +47,50 @@ describe('herd.herdr', function()
     Herdr.run = saved
   end)
 
-  it('spawn builds argv with --no-focus and NO --split', function()
+  it('ensure_workspace returns an existing workspace by label (no create)', function()
+    local created = false
+    local saved = Herdr.api
+    Herdr.api = function(args)
+      if args[1] == 'workspace' and args[2] == 'list' then
+        return { workspaces = { { workspace_id = 'wA', label = 'tlic' }, { workspace_id = 'wH', label = 'herd' } } }
+      end
+      if args[1] == 'workspace' and args[2] == 'create' then
+        created = true
+        return { workspace = { workspace_id = 'wNEW' } }
+      end
+      return {}
+    end
+    assert.are.equal('wH', Herdr.ensure_workspace('herd'))
+    assert.is_false(created)
+    Herdr.api = saved
+  end)
+
+  it('ensure_workspace creates the workspace when absent', function()
+    local saved = Herdr.api
+    Herdr.api = function(args)
+      if args[1] == 'workspace' and args[2] == 'list' then
+        return { workspaces = {} }
+      end
+      if args[1] == 'workspace' and args[2] == 'create' then
+        return { workspace = { workspace_id = 'wNEW' } }
+      end
+      return {}
+    end
+    assert.are.equal('wNEW', Herdr.ensure_workspace('herd'))
+    Herdr.api = saved
+  end)
+
+  it('spawn places the agent in the given workspace (no --split)', function()
     local got
     local saved = Herdr.api
     Herdr.api = function(args) got = args; return { agent = { name = 'claude' } } end
-    Herdr.spawn('claude', '/tmp/proj', { cmd = { 'claude', '--foo' }, env = { A = '1' } })
-    -- assemble for easy assertions
+    Herdr.spawn('claude', '/tmp/proj', { cmd = { 'claude', '--foo' }, env = { A = '1' } }, 'wH')
     local joined = table.concat(got, ' ')
     assert.is_nil(joined:find('--split'))
     assert.is_truthy(joined:find('agent start claude', 1, true))
     assert.is_truthy(joined:find('--cwd /tmp/proj', 1, true))
     assert.is_truthy(joined:find('--no-focus', 1, true))
+    assert.is_truthy(joined:find('--workspace wH', 1, true))
     assert.is_truthy(joined:find('--env A=1', 1, true))
     assert.is_truthy(joined:find('-- claude --foo', 1, true))
     Herdr.api = saved
