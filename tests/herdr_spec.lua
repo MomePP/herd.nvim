@@ -29,19 +29,21 @@ describe('herd.herdr', function()
     Herdr.api = saved
   end)
 
-  it('agents parses + filters by normalized cwd', function()
+  it('agents parses, filters by normalized cwd, and drops nameless agents', function()
     local saved = Herdr.api
     Herdr.api = function()
       return { agents = {
         { name = 'a', pane_id = 'p1', agent_status = 'idle', cwd = '/tmp/x' },
         { name = 'b', pane_id = 'p2', agent_status = 'working', cwd = '/tmp/y' },
+        -- detected agent with no assigned name → must be skipped
+        { pane_id = 'p3', agent_status = 'working', cwd = '/tmp/x' },
       } }
     end
     local all = Herdr.agents()
     assert.are.equal(2, #all)
     assert.are.equal('idle', all[1].status)
     local scoped = Herdr.agents(vim.fs.normalize('/tmp/x'))
-    assert.are.equal(1, #scoped)
+    assert.are.equal(1, #scoped) -- only the named 'a', not the nameless p3
     assert.are.equal('a', scoped[1].name)
     Herdr.api = saved
   end)

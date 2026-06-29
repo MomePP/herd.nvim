@@ -54,7 +54,10 @@ function M.agents(cwd)
   local res = M.api({ 'agent', 'list' }, { quiet = true })
   local ret = {} ---@type herd.Agent[]
   for _, a in ipairs(res and res.agents or {}) do
-    if not cwd or vim.fs.normalize(a.cwd or '') == cwd then
+    -- herdr also lists DETECTED agents with no assigned name (a coding-agent
+    -- process it spotted in some pane). herd targets by name, so skip the
+    -- nameless ones — they break next_name / picker labels and aren't reachable.
+    if a.name and (not cwd or vim.fs.normalize(a.cwd or '') == cwd) then
       ret[#ret + 1] = { name = a.name, pane_id = a.pane_id, status = a.agent_status, cwd = a.cwd }
     end
   end
