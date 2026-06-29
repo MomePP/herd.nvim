@@ -298,7 +298,33 @@ picker is scoped to the **current project cwd**. Row labels are `name  [status]`
 (no cwd column — redundant after scoping). The design's "grouped by cwd"
 presentation and cwd column are superseded.
 
-### send defers float open via vim.schedule
-`M.send()` in `init.lua` calls `Herdr.agent_send(a.name, text)` synchronously
-(the CLI call), then opens the float in a `vim.schedule` callback so the text
-delivery and the Esc key-feed have flushed before the window changes.
+### send/show defer the float open via vim.schedule
+`M.send()` calls `Herdr.agent_send(a.pane_id, text)` synchronously (the CLI
+call), then opens the float in a `vim.schedule` callback so the text delivery
+and the Esc key-feed have flushed before the window changes. The shared
+`show()` helper (used by spawn and picker-select) likewise defers
+`Terminal.open` via `vim.schedule` — opening a float synchronously inside a
+`vim.ui.select` (snacks) callback is unreliable.
+
+### Target agents by pane id, not name
+`herdr agent attach/send <name>` is **ambiguous** when herdr also detects
+same-tool processes in other panes (`agent_target_ambiguous` — a bare `claude`
+matches the herd-named agent AND every detected "claude"). So herd targets the
+unique **pane id** for both attach and send: `Terminal.open(name, { pane })`
+attaches `Herdr.attach_argv(opts.pane)`, and `M.send` calls
+`Herdr.agent_send(a.pane_id, text)`. The terminal registry stays keyed by name
+(herd's identity); only the herdr CLI calls use the pane id.
+
+### Skip nameless detected agents
+`Herdr.agents()` filters out entries with no `name` — herdr lists *detected*
+coding-agent processes (no assigned name) which herd cannot target by name and
+which would crash `next_name` (`taken[nil]`) and the picker labels.
+
+### Per-agent project-labelled tab
+`Herdr.spawn(name, cwd, def, workspace, tab_label)` creates the agent's own tab
+in the dedicated workspace (`herdr tab create --workspace <ws> --label
+<project>`) and starts it with `--tab <id>`. `tab_label` is the focused
+workspace's label (`Herdr.focused_workspace_label`, the user's project at spawn
+time), falling back to the cwd folder. Result: the herdr sidebar reads
+`<workspace> · <project>` (e.g. `herd · dotfiles-config`). With no `tab_label`,
+spawn falls back to `--workspace <ws>`.

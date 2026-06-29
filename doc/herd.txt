@@ -61,7 +61,11 @@ Options ~                                                       *herd-config*
     workspace  string                                     (default: "herd")
                herdr workspace label for spawned agents; herd.nvim
                finds or creates this workspace on each spawn to keep agents
-               off your project workspaces/tabs. Configurable.
+               off your project workspaces/tabs. Configurable (e.g. set it
+               to "herd.nvim" to flag nvim-spawned agents in the sidebar).
+               Each agent gets its own tab labelled with its project, so the
+               herdr sidebar reads "<workspace> · <project>". herd targets
+               agents by pane id (a bare tool name can be ambiguous to herdr).
 
 ==============================================================================
 MAPPINGS                                                      *herd-mappings*

@@ -107,14 +107,18 @@ Lua API `require('herd').{toggle,select,send,dashboard,spawn}()`.
 
 | What | herdr command |
 | --- | --- |
-| discover agents | `herdr agent list` |
-| spawn | `herdr agent start <name> --cwd <p> --workspace <ws> --no-focus -- <argv>` |
+| discover agents | `herdr agent list` (nameless *detected* agents are skipped — herd targets by name) |
+| spawn | `herdr tab create --workspace <ws> --label <project>` then `herdr agent start <name> --tab <tab> --no-focus -- <argv>` |
 | placement | dedicated `herd` workspace, found-or-created via `herdr workspace list` / `herdr workspace create --no-focus --label herd` |
-| show in nvim | nvim float running `herdr agent attach <name>` |
-| send selection | `herdr agent send <name> <text>` |
+| show in nvim | nvim float running `herdr agent attach <pane-id>` |
+| send selection | `herdr agent send <pane-id> <text>` |
 | dashboard | focus the dedicated `herd` workspace (`herdr workspace focus <ws>`) |
 
-Spawned agents are placed in a dedicated herdr workspace (default label `herd`) that lives off your project workspaces/tabs — so they never tile next to nvim when nvim runs inside a herdr session. The workspace is found-or-created automatically on each spawn; herdr auto-closes emptied tabs and the workspace is reused across spawns. The label is configurable via the `workspace` option.
+Spawned agents are placed in a dedicated herdr workspace (default label `herd`) that lives off your project workspaces/tabs — so they never tile next to nvim when nvim runs inside a herdr session. The workspace is found-or-created automatically on each spawn; herdr auto-closes emptied tabs and the workspace is reused across spawns. The label is configurable via the `workspace` option (e.g. set it to `herd.nvim` to flag nvim-spawned agents in the sidebar).
+
+Each agent gets its **own tab inside that workspace, labelled with its project** (the focused workspace's label, falling back to the cwd folder), so the herdr sidebar reads `<workspace> · <project>` (e.g. `herd · dotfiles-config`) instead of a bare workspace name.
+
+herd targets agents by their **pane id**, not by name: a bare tool name like `claude` is ambiguous to herdr when it also detects same-tool processes in other panes, so `attach`/`send` use the unique pane id.
 
 Discovery is by agent **name**, which herdr preserves through its native agent
 detection — so the tool you spawn is the tool `herd` finds again. Names are
