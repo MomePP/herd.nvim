@@ -131,6 +131,12 @@ describe('herd.herdr', function()
       if args[1] == 'agent' and args[2] == 'start' then
         return { agent = { name = 'claude', pane_id = 'wH:p9' } }
       end
+      if args[1] == 'pane' and args[2] == 'list' then
+        return { panes = {
+          { pane_id = 'wH:p9', tab_id = 'wH:t5' }, -- the agent
+          { pane_id = 'wH:p8', tab_id = 'wH:t5' }, -- the spare initial pane
+        } }
+      end
       return {}
     end
     Herdr.spawn('claude', '/tmp/proj', { cmd = { 'claude' } }, 'wH', 'dotfiles-config')
@@ -143,8 +149,9 @@ describe('herd.herdr', function()
     assert.is_truthy(startcmd:find('--tab wH:t5', 1, true))
     assert.is_nil(startcmd:find('--workspace')) -- placed via --tab, not --workspace
     assert.is_nil(startcmd:find('--split'))
-    -- agent's pane is zoomed so it fills the tab (the tab also holds an empty pane)
-    assert.are.same({ 'pane', 'zoom', 'wH:p9', '--on' }, calls[3])
+    -- the spare pane in the tab (≠ the agent's) is closed; the agent's is kept
+    assert.are.same({ 'pane', 'list', '--workspace', 'wH' }, calls[3])
+    assert.are.same({ 'pane', 'close', 'wH:p8' }, calls[4])
     Herdr.api = saved
   end)
 

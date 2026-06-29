@@ -173,10 +173,17 @@ function M.spawn(name, cwd, def, workspace, tab_label)
   vim.list_extend(args, def.cmd)
   local started = M.api(args)
   local agent = started and started.agent
-  -- The per-agent tab also holds the tab's initial empty pane, so the agent
-  -- starts split. Zoom the agent's pane so it fills the tab when viewed in herdr.
-  if agent and tab and agent.pane_id then
-    M.api({ 'pane', 'zoom', agent.pane_id, '--on' })
+  -- `tab create` leaves an empty initial pane, so `agent start --tab` lands the
+  -- agent as a *second* pane (a split). Close that spare pane so the agent is the
+  -- sole pane — it then fills the tab (fullscreen in herdr) and the tab label
+  -- shows in the sidebar, without zooming (which steals focus out of nvim).
+  if agent and tab and workspace and agent.pane_id then
+    local panes = M.api({ 'pane', 'list', '--workspace', workspace })
+    for _, p in ipairs(panes and panes.panes or {}) do
+      if p.tab_id == tab and p.pane_id ~= agent.pane_id then
+        M.api({ 'pane', 'close', p.pane_id })
+      end
+    end
   end
   return agent
 end
