@@ -12,28 +12,27 @@ local M = {}
 ---@type herd.Agent?
 M.target = nil
 
---- Resolve which live agent the next action should hit:
----   1. the cached target, if still running;
----   2. else an agent in the current cwd;
----   3. else any running agent.
---- Returns nil only when nothing is running — this is the "fall back to an agent that
---- is still running" behaviour after the previous one is stopped.
+--- Resolve which live agent the next action should hit, scoped to the current cwd:
+---   1. the cached target, if still running AND in this cwd;
+---   2. else any running agent in this cwd;
+---   3. else nil → caller spawns a fresh agent for this project.
+--- Never returns an agent from another cwd, so opening nvim in a new project
+--- spawns its own agent instead of toggling into another project's pane.
 ---@return herd.Agent?
 local function live_target()
   local cwd = vim.fs.normalize(vim.fn.getcwd())
-  local all = Herdr.agents()
-  if #all == 0 then
+  local scoped = Herdr.agents(cwd)
+  if #scoped == 0 then
     return nil
   end
   if M.target then
-    for _, a in ipairs(all) do
+    for _, a in ipairs(scoped) do
       if a.pane_id == M.target.pane_id then
         return a
       end
     end
   end
-  local scoped = Herdr.agents(cwd)
-  return scoped[1] or all[1]
+  return scoped[1]
 end
 
 --- Bring an agent pane to the foreground, fullscreen (per config.zoom).
