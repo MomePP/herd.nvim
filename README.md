@@ -16,11 +16,11 @@ keybinds; there is no multiplexer round-trip.
 
 ## ✨ Features
 
-- 🚀 **Spawn + fullscreen float** — picker spawns a tool and shows it in a 90 % nvim float.
-- 🔄 **Toggle** — `<leader><Tab>` (normal) opens/closes this cwd's agent; `count` targets a numbered slot.
-- ✂️ **Send selection** — visual `<leader><Tab>` pushes the selection to the active agent (no Enter — review, then submit).
-- 🗂 **Grouped picker** — `<leader>;` lists running agents **for the current project** and configured tools. Use the dashboard for a cross-project view.
-- 📊 **Dashboard** — `<leader>\` focuses the dedicated herd workspace in herdr, surfacing all agents in herdr's native view.
+- 🚀 **Spawn + fullscreen float** — picker spawns a tool and shows it in a fullscreen nvim float.
+- 🔄 **Toggle** — `<leader>s` (normal) opens/closes this cwd's agent; `count` targets a numbered slot.
+- ✂️ **Send selection** — visual `<leader>s` pushes the selection to the active agent (no Enter — review, then submit).
+- 🗂 **Grouped picker** — `<leader>S` lists running agents **for the current project** and configured tools. Use the dashboard for a cross-project view.
+- 📊 **Dashboard** — unmapped by default; use `:Herd dashboard` or set `keys.dashboard` to a key to focus the dedicated herd.nvim workspace in herdr.
 - 💾 **Persistence** — agents survive closing the float and `:q`; herdr owns the process and rediscovers them via `herdr agent list`.
 - 🩺 **`:checkhealth herd`** — verifies herdr, the server, and your tools.
 - 🪶 **Tiny** — seven small Lua files, one external dependency (the `herdr` binary).
@@ -63,26 +63,28 @@ require('herd').setup({
   -- Spawnable agents. Key = tool name, `cmd` = argv, `env` = extra environment.
   tools = {},
 
-  workspace = 'herd',  -- herdr workspace label that hosts spawned agents (kept off your project tabs)
+  workspace = 'herd.nvim',  -- herdr workspace label that hosts spawned agents (kept off your project tabs)
 
   -- Keymaps. Set any to `false` to disable it.
   keys = {
-    toggle    = '<leader><Tab>',  -- (normal)   toggle this cwd's agent float; count = slot
-    send      = '<leader><Tab>',  -- (visual)   send selection to the active agent
-    hide      = '<leader><Tab>',  -- (terminal) hide the float from inside
-    select    = '<leader>;',      -- (normal)   grouped picker: switch agent or spawn tool
-    dashboard = '<leader>\\',     -- (normal)   focus the dedicated herd workspace in herdr
-    newline   = '<S-CR>',         -- (terminal) send a CLI newline (kitty Shift-Enter) to the agent
+    toggle    = '<leader>s',  -- (normal)   toggle this cwd's agent float; count = slot
+    send      = '<leader>s',  -- (visual)   send selection to the active agent
+    hide      = '<leader>s',  -- (terminal) hide the float from inside
+    select    = '<leader>S',  -- (normal)   grouped picker: switch agent or spawn tool
+    dashboard = false,        -- (normal)   unmapped by default; use :Herd dashboard
+    newline   = '<S-CR>',     -- (terminal) send a CLI newline (kitty Shift-Enter) to the agent
   },
 
-  -- Float window dimensions and style.
+  -- Float window. Defaults to a fullscreen invisible-border float.
+  -- Set `winhighlight` to your terminal highlight groups for a transparent overlay
+  -- (e.g. Snacks: 'Normal:SnacksTerminalNormal,...').
   win = {
-    width       = 0.9,      -- fraction of &columns
-    height      = 0.9,      -- fraction of &lines
-    border      = 'rounded',
-    footer      = true,     -- show "Herd: <agent>" footer
+    width       = 1,      -- fraction of &columns (1 = fullscreen)
+    height      = 1,      -- fraction of &lines   (1 = fullscreen)
+    border      = { '', '', '', '', ' ', ' ', ' ', '' },  -- invisible border (bottom row kept for footer)
+    footer      = true,   -- show "Herd: <agent>" footer
     winblend    = 0,
-    winhighlight = '',      -- e.g. 'Normal:MyTermBg' for a transparent/terminal-styled float
+    winhighlight = '',    -- set terminal-bg highlight groups here for a transparent overlay
   },
 })
 ```
@@ -91,11 +93,11 @@ require('herd').setup({
 
 | Key | Mode | Action |
 | --- | --- | --- |
-| `<leader><Tab>` | normal | Toggle this cwd's agent float. `<count><key>` targets slot N; an **empty slot spawns the inferred tool's next clone** (inferred from current target, first project agent, or sole configured tool — else opens the picker). |
-| `<leader><Tab>` | visual | Send the selection to the active agent (no Enter — the float opens so you can review and submit). |
-| `<leader><Tab>` | terminal | Hide the float from inside the agent. |
-| `<leader>;` | normal | Grouped picker (**current project only**): switch to a running agent or spawn a configured tool. Rows show `name  [status]`. |
-| `<leader>\` | normal | Focus the dedicated herd workspace in herdr, surfacing all agents in herdr's native view. |
+| `<leader>s` | normal | Toggle this cwd's agent float. `<count><key>` targets slot N; an **empty slot spawns the inferred tool's next clone** (inferred from current target, first project agent, or sole configured tool — else opens the picker). |
+| `<leader>s` | visual | Send the selection to the active agent (no Enter — the float opens so you can review and submit). |
+| `<leader>s` | terminal | Hide the float from inside the agent. |
+| `<leader>S` | normal | Grouped picker (**current project only**): switch to a running agent or spawn a configured tool. Rows show `name  [status]`. |
+| (unmapped) | normal | Focus the dedicated herd.nvim workspace in herdr. Use `:Herd dashboard` or set `keys.dashboard` to a key. |
 | `<S-CR>` | terminal | Send a newline (kitty `Esc[13;2u`) to the agent — for multi-line prompts without submitting. |
 
 Also available as `:Herd [toggle|select|send|dashboard]`, `:Herd spawn <tool>`, and the
@@ -109,14 +111,14 @@ Lua API `require('herd').{toggle,select,send,dashboard,spawn}()`.
 | --- | --- |
 | discover agents | `herdr agent list` (nameless *detected* agents are skipped — herd targets by name) |
 | spawn | `herdr tab create --workspace <ws> --label <project>` → `herdr agent start <name> --tab <tab> --no-focus -- <argv>` → close the tab's spare pane so the agent fills it |
-| placement | dedicated `herd` workspace, found-or-created via `herdr workspace list` / `herdr workspace create --no-focus --label herd` |
+| placement | dedicated `herd.nvim` workspace, found-or-created via `herdr workspace list` / `herdr workspace create --no-focus --label herd.nvim` |
 | show in nvim | nvim float running `herdr agent attach <pane-id>` |
 | send selection | `herdr agent send <pane-id> <text>` |
 | dashboard | focus the dedicated `herd` workspace (`herdr workspace focus <ws>`) |
 
-Spawned agents are placed in a dedicated herdr workspace (default label `herd`) that lives off your project workspaces/tabs — so they never tile next to nvim when nvim runs inside a herdr session. The workspace is found-or-created automatically on each spawn and reused across spawns. When an agent exits herdr leaves its (now agentless) tab behind, so herd **reaps dead tabs on the next spawn**. The label is configurable via the `workspace` option (e.g. set it to `herd.nvim` to flag nvim-spawned agents in the sidebar).
+Spawned agents are placed in a dedicated herdr workspace (default label `herd.nvim`) that lives off your project workspaces/tabs — so they never tile next to nvim when nvim runs inside a herdr session. The workspace is found-or-created automatically on each spawn and reused across spawns. When an agent exits herdr leaves its (now agentless) tab behind, so herd **reaps dead tabs on the next spawn**. The label is configurable via the `workspace` option.
 
-Each agent gets its **own tab inside that workspace, labelled with its project** (the focused workspace's label, falling back to the cwd folder), so the herdr sidebar reads `<workspace> · <project>` (e.g. `herd · dotfiles-config`). The spare pane the tab is created with is closed so the agent fills the tab (fullscreen when viewed in herdr, without zooming — which would steal focus). Note herdr only renders the `· <project>` suffix when the workspace holds **2+ tabs** (2+ agents); with a single agent it shows just the workspace name.
+Each agent gets its **own tab inside that workspace, labelled with its project** (the focused workspace's label, falling back to the cwd folder), so the herdr sidebar reads `<workspace> · <project>` (e.g. `herd.nvim · dotfiles-config`). The spare pane the tab is created with is closed so the agent fills the tab (fullscreen when viewed in herdr, without zooming — which would steal focus). Note herdr only renders the `· <project>` suffix when the workspace holds **2+ tabs** (2+ agents); with a single agent it shows just the workspace name.
 
 herd targets agents by their **pane id**, not by name: a bare tool name like `claude` is ambiguous to herdr when it also detects same-tool processes in other panes, so `attach`/`send` use the unique pane id.
 
@@ -139,16 +141,16 @@ prefer tmux/zellij as the backend, use sidekick.
 
 **Do agents survive closing the float or quitting nvim?**
 Yes. herdr owns the process; closing the float (or `:q`) only detaches the nvim
-terminal. Run `<leader>;` (picker) or `:Herd select` to reattach from the same
-project. For agents in other projects, use `<leader>\` (dashboard) to focus the
-herd workspace in herdr and see all agents there, then re-toggle from nvim once you
-change directory.
+terminal. Run `<leader>S` (picker) or `:Herd select` to reattach from the same
+project. For agents in other projects, use `:Herd dashboard` (or set `keys.dashboard`)
+to focus the herd.nvim workspace in herdr and see all agents there, then re-toggle
+from nvim once you change directory.
 
 **Nothing happens / "no herdr server running".**
 Launch `herdr` first (any terminal or as a headless daemon). Run `:checkhealth herd`.
 
 **Can I run multiple agents in one project?**
-Yes. Picker → spawn a tool again; it'll be named `claude_2`, etc. Use `2<leader><Tab>`
+Yes. Picker → spawn a tool again; it'll be named `claude_2`, etc. Use `2<leader>s`
 to toggle directly to slot 2.
 
 ## 🙏 Credits

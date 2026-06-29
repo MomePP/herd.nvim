@@ -41,28 +41,29 @@ Options ~                                                       *herd-config*
 
     keys    { toggle, send, hide, select, dashboard, newline }
             Set any to false to disable. Defaults:
-              toggle    = "<leader><Tab>"   (normal)   toggle agent float; count = slot
-              send      = "<leader><Tab>"   (visual)   send selection
-              hide      = "<leader><Tab>"   (terminal) hide the float
-              select    = "<leader>;"       (normal)   grouped picker
-              dashboard = "<leader>\"       (normal)   focus herd workspace in herdr
+              toggle    = "<leader>s"       (normal)   toggle agent float; count = slot
+              send      = "<leader>s"       (visual)   send selection
+              hide      = "<leader>s"       (terminal) hide the float
+              select    = "<leader>S"       (normal)   grouped picker
+              dashboard = false             (normal)   unmapped; use :Herd dashboard
               newline   = "<S-CR>"          (terminal) send CLI newline (Shift-Enter)
 
     win     { width, height, border, footer, winblend, winhighlight }
-              width        = 0.9      fraction of &columns
-              height       = 0.9      fraction of &lines
-              border       = "rounded"
+              width        = 1        fraction of &columns (1 = fullscreen)
+              height       = 1        fraction of &lines   (1 = fullscreen)
+              border       = { '', '', '', '', ' ', ' ', ' ', '' }
+                                      invisible border (bottom row kept for footer)
               footer       = true     show "Herd: <agent>" footer
               winblend     = 0
-              winhighlight = ""       winhighlight string applied to the float
-                                      (e.g. "Normal:MyTermBg" for a
-                                      transparent/terminal-styled overlay)
+              winhighlight = ""       set terminal-bg highlight groups here
+                                      for a transparent overlay (e.g. Snacks:
+                                      Normal:SnacksTerminalNormal,...)
 
-    workspace  string                                     (default: "herd")
+    workspace  string                                     (default: "herd.nvim")
                herdr workspace label for spawned agents; herd.nvim
                finds or creates this workspace on each spawn to keep agents
-               off your project workspaces/tabs. Configurable (e.g. set it
-               to "herd.nvim" to flag nvim-spawned agents in the sidebar).
+               off your project workspaces/tabs. Configurable via the
+               `workspace` option.
                Each agent gets its own tab labelled with its project, so the
                herdr sidebar reads "<workspace> · <project>". herd targets
                agents by pane id (a bare tool name can be ambiguous to herdr).
@@ -70,22 +71,22 @@ Options ~                                                       *herd-config*
 ==============================================================================
 MAPPINGS                                                      *herd-mappings*
 
-    <leader><Tab>   (normal)    Toggle this cwd's agent float. <count><key> targets
+    <leader>s       (normal)    Toggle this cwd's agent float. <count><key> targets
                                 slot N. An empty slot spawns the inferred tool's
                                 next clone (inferred: current target's base →
                                 first project agent's base → sole configured tool
                                 → else picker). Falls back to picker when no
                                 agent runs here.
-    <leader><Tab>   (visual)    Send selection to the active agent (no Enter
+    <leader>s       (visual)    Send selection to the active agent (no Enter
                                 appended). The float opens so you can review
                                 and submit.
-    <leader><Tab>   (terminal)  Hide the float from inside (buffer-local map).
-    <leader>;       (normal)    Grouped picker (current project only): switch
+    <leader>s       (terminal)  Hide the float from inside (buffer-local map).
+    <leader>S       (normal)    Grouped picker (current project only): switch
                                 to a running agent or spawn a configured tool.
                                 Rows show "name  [status]".
-    <leader>\       (normal)    Focus the dedicated herd workspace in herdr
-                                (`herdr workspace focus <id>`), surfacing all
-                                agents in herdr's native view.
+    (unmapped)      (normal)    Dashboard: focus the dedicated herd.nvim workspace
+                                in herdr. Use `:Herd dashboard` or set
+                                `keys.dashboard` to a key.
     <S-CR>          (terminal)  Send a CLI newline (kitty Esc[13;2u) to the
                                 agent — buffer-local map for multi-line prompts
                                 without submitting.
@@ -95,14 +96,14 @@ PERSISTENCE                                                 *herd-persistence*
 
 herdr owns each agent's PTY. Hiding the float (or closing nvim entirely)
 only detaches the nvim terminal — the agent keeps running in herdr. Spawned
-agents live in a dedicated herdr workspace (default label "herd"), off your
+agents live in a dedicated herdr workspace (default label "herd.nvim"), off your
 project workspaces/tabs; the workspace is found-or-created on each spawn. To
 reattach:
 
-- Run <leader>; (picker) or `:Herd select` — lists agents for the current project.
+- Run <leader>S (picker) or `:Herd select` — lists agents for the current project.
 - Run `:Herd toggle` to reopen the float for the current project's agent.
-- Use <leader>\ (dashboard) to focus the herd workspace in herdr and surface
-  agents from all projects in herdr's native view.
+- Use `:Herd dashboard` (or set `keys.dashboard`) to focus the herd.nvim workspace
+  in herdr and surface agents from all projects in herdr's native view.
 
 Agents are rediscovered via `herdr agent list`; as long as the herdr server
 is running, sessions persist across nvim restarts.
