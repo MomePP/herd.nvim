@@ -34,29 +34,32 @@ Options ~                                                         *herd-config*
 
     tools   table<string, { cmd: string[], env?: table }>   (default: {})
             Spawnable agents. The key is the tool name; `cmd` is the argv.
-    keys    { toggle, send, select }
-            Default: toggle = "<leader><Tab>", send = "<leader>s",
-                     select = "<leader>S"
+    keys    { toggle, send, select }   (set any to false to disable)
+            Default: toggle = false, send = "<leader><Tab>",
+                     select = "<leader><Tab>"
     zoom    boolean   (default: true)
             Zoom the agent pane fullscreen on toggle/spawn.
 
 ==============================================================================
 MAPPINGS                                                        *herd-mappings*
 
-    <leader><Tab>   (normal)  toggle to a running agent fullscreen; if none,
-                              open the picker to spawn one. After the agent you
-                              used stops, lands on another still running.
-    <leader>s       (visual)  send the selection to the active agent
-    <leader>S       (normal)  select: switch to an agent, or spawn a tool
+    <leader><Tab>   (normal)  select: switch to a running agent, or spawn a tool
+    <leader><Tab>   (visual)  send the selection to the active agent
+    toggle          (normal)  off by default; set keys.toggle to jump straight
+                              to this cwd's agent / spawn if none
 
-THE RETURN TRIP                                                   *herd-return*
+==============================================================================
+NAVIGATION                                                       *herd-return*
 
-Once the agent pane is focused, Neovim no longer receives keys, so <leader>
-cannot bring you back. Bind the return in herdr's config.toml instead: >toml
+herd is a spawner; moving nvim<->agent belongs to your multiplexer. The agent
+is spawned as a split in nvim's tab (nvim-left / agent-right), so use herdr's
+directional pane focus (tab-scoped, reliable across workspaces): >toml
     [keys]
-    last_pane = "prefix+tab"   # Ctrl-b Tab from the agent -> back to nvim
+    focus_pane_left  = "prefix+h"   # -> nvim
+    focus_pane_right = "prefix+l"   # -> agent
 <
-Net gesture: <leader><Tab> out, Ctrl-b Tab back.
+Avoid herdr last_pane/cycle_pane_* here — they are global/cycle and won't
+reliably return to this project's agent after switching workspaces.
 
 ==============================================================================
 COMMANDS                                                        *herd-commands*

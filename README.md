@@ -22,10 +22,10 @@ multiplexer, nothing to keep in sync. herdr stays the host; nvim just points at 
 
 ## ✨ Features
 
-- 🚀 **Spawn + fullscreen** — `<leader><Tab>` / `:Herd` starts a tool and zooms it.
-- ♻️ **Smart toggle** — reuses your last agent; if it died, lands on another live one;
-  if none are running, opens the spawn picker.
-- ✂️ **Send selection** — `<leader>s` in visual mode pushes the selection to the agent.
+- 🚀 **Spawn + fullscreen** — `<leader><Tab>` (normal) picks/spawns a tool and zooms it.
+- ✂️ **Send selection** — `<leader><Tab>` in visual mode pushes the selection to the agent.
+- 🧭 **Navigation stays in your multiplexer** — jump nvim↔agent with your terminal's
+  pane focus (e.g. herdr `Ctrl-a h`/`l`); opt into an in-editor `toggle` key if you want.
 - 🔢 **Multiple agents per project** — herdr agent names are globally unique, so a
   second `claude` becomes `claude_2`, `claude_3`, … automatically.
 - 🩺 **`:checkhealth herd`** — verifies herdr, the server, the pane, and your tools.
@@ -69,11 +69,11 @@ require('herd').setup({
   -- Spawnable agents. Key = tool name, `cmd` = argv, `env` = extra environment.
   tools = {},
 
-  -- Keymaps (set any to false-y by overriding; or remap to taste).
+  -- Keymaps. Set any to `false` to disable it.
   keys = {
-    toggle = '<leader><Tab>', -- normal: toggle agent fullscreen / spawn
-    send   = '<leader>s',     -- visual: send selection to the active agent
-    select = '<leader>S',     -- normal: pick an agent to switch to, or a tool to spawn
+    toggle = false,           -- (normal) jump to this cwd's agent / spawn — off by default
+    send   = '<leader><Tab>', -- visual: send selection to the active agent
+    select = '<leader><Tab>', -- normal: pick an agent to switch to, or a tool to spawn
   },
 
   -- Zoom the agent pane fullscreen on toggle/spawn.
@@ -85,31 +85,53 @@ require('herd').setup({
 
 | Key | Mode | Action |
 | --- | --- | --- |
-| `<leader><Tab>` | normal | Toggle to a running agent, fullscreen. None running → spawn picker. |
-| `<leader>s` | visual | Send the selection to the active agent (no Enter — review, then submit). |
-| `<leader>S` | normal | Picker: switch to a running agent, or spawn a configured tool. |
+| `<leader><Tab>` | normal | Picker: switch to a running agent, or spawn a configured tool (zoomed). |
+| `<leader><Tab>` | visual | Send the selection to the active agent (no Enter — review, then submit). |
+| `<leader><Tab>`¹ | normal | *(opt-in `toggle`)* jump straight to this cwd's agent / spawn if none. |
+
+¹ `toggle` is disabled by default — navigation is left to your multiplexer (see below).
+Set `keys.toggle` to a key to enable the in-editor jump.
 
 Also available as `:Herd [toggle|select|send]` and the Lua API
 `require('herd').{toggle,select,send,spawn}()`.
 
-### The return trip ⟲ (important)
+### Navigation ⟲ (important)
 
-`herd` can take you **to** an agent, but it **cannot bring you back** — once the agent
-pane is focused, Neovim no longer receives keystrokes, so `<leader>` can't reach it.
-That half belongs to herdr.
+herd is a **spawner**, not a navigator — once the agent pane is focused, Neovim no
+longer receives keystrokes (so `<leader>` can't reach it), and moving between nvim and
+the agent is best handled by your multiplexer anyway. That's why `toggle` is **off by
+default**.
 
 herd spawns the agent as a **split in nvim's tab** (nvim-left / agent-right), so use
 herdr's **directional pane focus** — it's tab-scoped, so it always lands on the right
 pane regardless of which workspace you're in (unlike `last_pane`, which is global):
 
 ```
-nvim  ──<leader>;──▶  agent   (toggle: cwd-aware, fullscreen)
-nvim  ◀──prefix+h──   agent   (focus the pane to the left)
-nvim  ──prefix+l──▶   agent   (focus the pane to the right)
+nvim  ──<leader><Tab>──▶  agent   (spawn/pick → lands you in the agent, zoomed)
+nvim  ◀──prefix+h──       agent   (focus pane left  = nvim)
+nvim  ──prefix+l──▶       agent   (focus pane right = agent)
 ```
 
 > Avoid herdr's `last_pane` / `cycle_pane_*` for this — they're global / cycle-based,
 > so after switching workspaces they won't reliably return to *this* project's agent.
+
+#### Pairing herdr config
+
+The directional keys above are herdr defaults; `prefix` is whatever you set (herdr's
+default is `ctrl+b`). A minimal pairing in `~/.config/herdr/config.toml`:
+
+```toml
+[keys]
+prefix           = "ctrl+a"   # optional — e.g. match tmux muscle memory
+focus_pane_left  = "prefix+h" # → nvim
+focus_pane_right = "prefix+l" # → agent
+focus_pane_down  = "prefix+j"
+focus_pane_up    = "prefix+k"
+```
+
+Prefer an in-editor jump instead? Re-enable `toggle` in setup
+(`keys = { toggle = '<leader>;' }`) and pair it with a herdr `last_pane` binding for
+the way back — just note the cwd/workspace caveat above.
 
 Same `Tab` gesture both ways — two different owners, because herdr is the host.
 
@@ -136,16 +158,18 @@ terminals (using tmux/zellij underneath). herd assumes **herdr** is the host and
 nvim is a pane. If you want nvim-as-host, use sidekick. If you've adopted herdr as
 your multiplexer, use herd.
 
-**Why can't one key toggle both directions?**
-Because `<leader>` only exists inside nvim. When the agent pane has focus, the
-keyboard goes to the agent's TUI; only herdr's global prefix is intercepted. See
-[The return trip](#the-return-trip-).
+**Why doesn't herd map a "go to agent" key by default?**
+Because `<leader>` only exists inside nvim — once the agent pane has focus, the
+keyboard goes to the agent's TUI and only your multiplexer's prefix is intercepted.
+So the round trip can't be symmetric from nvim alone; navigation belongs to herdr
+(`prefix+h`/`l`). See [Navigation](#navigation--important). You can still opt into an
+in-editor `toggle` key.
 
 **Nothing happens / "no herdr server running".**
 Launch `herdr` first and run nvim inside one of its panes. Run `:checkhealth herd`.
 
 **Can I run multiple agents in one project?**
-Yes. `<leader>S` → pick a tool to spawn again; it'll be named `claude_2`, etc.
+Yes. `<leader><Tab>` → pick a tool to spawn again; it'll be named `claude_2`, etc.
 
 ## 🙏 Credits
 

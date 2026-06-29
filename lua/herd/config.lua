@@ -5,9 +5,9 @@ local M = {}
 ---@field env? table<string, string>    extra environment for the agent process
 
 ---@class herd.Keys
----@field toggle string   normal: go to a live agent fullscreen / spawn
----@field send string     visual: send the selection to the active agent
----@field select string   normal: switch to an agent, or spawn a tool
+---@field toggle string|false  normal: go to a live agent / spawn (false = disabled)
+---@field send string|false    visual: send the selection to the active agent
+---@field select string|false  normal: switch to an agent, or spawn a tool
 
 ---@class herd.Config
 ---@field tools table<string, herd.Tool>
@@ -18,9 +18,11 @@ local M = {}
 local defaults = {
   tools = {},
   keys = {
-    toggle = '<leader><Tab>',
-    send = '<leader>s',
-    select = '<leader>S',
+    -- herd is a spawner; navigation (nvim <-> agent) is left to your multiplexer
+    -- (e.g. herdr directional pane focus). Set `toggle` to a key to opt back in.
+    toggle = false, -- (normal) jump to this cwd's agent / spawn — off by default
+    send = '<leader><Tab>', -- (visual) send selection to the active agent
+    select = '<leader><Tab>', -- (normal) pick a running agent or spawn a tool
   },
   zoom = true,
 }
