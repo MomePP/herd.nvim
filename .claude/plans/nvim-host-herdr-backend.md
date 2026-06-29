@@ -887,7 +887,8 @@ local Herd = require('herd')
 describe('herd init', function()
   it('setup registers the :Herd command and is idempotent', function()
     Herd.setup({ tools = { claude = { cmd = { 'claude' } } } })
-    assert.are.equal(1, vim.fn.exists(':Herd'))
+    -- a fully-defined user command makes exists(':Herd') return 2, not 1
+    assert.is_true(vim.fn.exists(':Herd') >= 1)
     Herd.setup({}) -- second call must not error
   end)
 
@@ -1020,6 +1021,9 @@ local function selection()
   local mode = vim.fn.mode()
   if not mode:match('^[vV\22]$') then
     mode = vim.fn.visualmode()
+  end
+  if mode == '' then -- no visual context → getregion rejects an empty type (E475)
+    return ''
   end
   return table.concat(vim.fn.getregion(vim.fn.getpos('v'), vim.fn.getpos('.'), { type = mode }), '\n')
 end
