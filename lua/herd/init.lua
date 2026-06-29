@@ -129,35 +129,22 @@ function M.send()
   end
   M.target = a.name
   Herdr.agent_send(a.name, text)
-  Terminal.open(a.name, { cwd = a.cwd }) -- land in the agent to submit
+  vim.schedule(function()
+    Terminal.open(a.name, { cwd = a.cwd }) -- land in the agent to submit
+  end)
   vim.notify('herd → ' .. a.name)
 end
 
---- Pop herdr's full TUI (dashboard) in a float.
+--- Surface the agent pool: focus the dedicated herd workspace in the herdr client.
 function M.dashboard()
   if not ensure_server() then
     return
   end
-  local buf = vim.api.nvim_create_buf(false, true)
-  local w = Config.get().win
-  local width = math.max(1, math.floor(vim.o.columns * w.width))
-  local height = math.max(1, math.floor(vim.o.lines * w.height))
-  local win = vim.api.nvim_open_win(buf, true, {
-    relative = 'editor',
-    width = width,
-    height = height,
-    col = math.floor((vim.o.columns - width) / 2),
-    row = math.floor((vim.o.lines - height) / 2),
-    style = 'minimal',
-    border = w.border,
-  })
-  vim.wo[win].winblend = w.winblend
-  vim.fn.termopen(Herdr.dashboard_argv(), {
-    on_exit = function()
-      pcall(vim.api.nvim_win_close, win, true)
-    end,
-  })
-  vim.cmd('startinsert')
+  local ws = Herdr.ensure_workspace(Config.get().workspace)
+  if not ws then
+    return vim.notify('herd: no herd workspace yet — spawn an agent first', vim.log.levels.WARN)
+  end
+  Herdr.focus_workspace(ws)
 end
 
 ---@param opts? herd.Config
@@ -176,17 +163,27 @@ function M.setup(opts)
   if cfg.keys.dashboard then
     map('n', cfg.keys.dashboard, M.dashboard, { desc = 'herd: herdr dashboard' })
   end
-  -- terminal-mode hide is registered per-float by an autocmd so it is buffer-local.
-  if cfg.keys.hide then
+  -- terminal-mode hide/newline are registered per-float by an autocmd so they are buffer-local.
+  if cfg.keys.hide or cfg.keys.newline then
     vim.api.nvim_create_autocmd('TermOpen', {
       group = vim.api.nvim_create_augroup('herd_term', { clear = true }),
       callback = function(ev)
         -- only herd floats (terminal buffers we created are 'nofile' scratch + termopen)
         for name, e in pairs(Terminal.reg) do
           if e.buf == ev.buf then
-            vim.keymap.set('t', cfg.keys.hide, function()
-              Terminal.hide(name)
-            end, { buffer = ev.buf, desc = 'herd: hide float' })
+            if cfg.keys.hide then
+              vim.keymap.set('t', cfg.keys.hide, function()
+                Terminal.hide(name)
+              end, { buffer = ev.buf, desc = 'herd: hide float' })
+            end
+            if cfg.keys.newline then
+              vim.keymap.set('t', cfg.keys.newline, function()
+                local job = vim.b[ev.buf].terminal_job_id
+                if job then
+                  vim.fn.chansend(job, '\27[13;2u')
+                end
+              end, { buffer = ev.buf, desc = 'herd: shift-enter newline to CLI' })
+            end
           end
         end
       end,

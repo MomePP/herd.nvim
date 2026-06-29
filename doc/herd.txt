@@ -67,7 +67,7 @@ MAPPINGS                                                      *herd-mappings*
     <leader><Tab>   (visual)    Send selection to the active agent (no Enter).
     <leader><Tab>   (terminal)  Hide the float from inside.
     <leader>;       (normal)    Grouped picker: switch agent or spawn tool.
-    <leader>\       (normal)    herdr full TUI dashboard in a float.
+    <leader>\       (normal)    focus the dedicated herd workspace (`herdr workspace focus <ws>`).
 
 ==============================================================================
 PERSISTENCE                                                 *herd-persistence*

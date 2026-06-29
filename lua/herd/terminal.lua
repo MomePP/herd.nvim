@@ -42,6 +42,9 @@ local function open_float(buf, footer_text)
   end
   local win = vim.api.nvim_open_win(buf, true, cfg)
   vim.wo[win].winblend = w.winblend
+  if w.winhighlight and w.winhighlight ~= '' then
+    vim.wo[win].winhighlight = w.winhighlight
+  end
   return win
 end
 

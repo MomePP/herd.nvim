@@ -45,4 +45,11 @@ describe('herd.terminal', function()
     Terminal.toggle('claude') -- hides
     assert.is_false(Terminal.is_open('claude'))
   end)
+
+  it('open applies configured winhighlight to the float', function()
+    require('herd.config').setup({ win = { winhighlight = 'Normal:Foo' } })
+    Terminal.open('claude')
+    assert.are.equal('Normal:Foo', vim.wo[Terminal.reg['claude'].win].winhighlight)
+    require('herd.config').options = nil
+  end)
 end)

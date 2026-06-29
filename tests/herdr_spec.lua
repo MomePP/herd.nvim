@@ -1,9 +1,17 @@
 local Herdr = require('herd.herdr')
 
 describe('herd.herdr', function()
-  it('attach_argv / dashboard_argv', function()
+  it('attach_argv', function()
     assert.are.same({ 'herdr', 'agent', 'attach', 'claude' }, Herdr.attach_argv('claude'))
-    assert.are.same({ 'herdr' }, Herdr.dashboard_argv())
+  end)
+
+  it('focus_workspace runs the workspace focus command', function()
+    local got
+    local saved = Herdr.run
+    Herdr.run = function(args) got = args end
+    Herdr.focus_workspace('wH')
+    assert.are.same({ 'workspace', 'focus', 'wH' }, got)
+    Herdr.run = saved
   end)
 
   it('slot_name: 1 is the base, n>1 is suffixed', function()

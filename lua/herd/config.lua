@@ -10,6 +10,7 @@ local M = {}
 ---@field hide string|false     terminal: hide the float from inside
 ---@field select string|false   normal: grouped picker (switch / spawn)
 ---@field dashboard string|false normal: pop herdr's full TUI in a float
+---@field newline string|false  terminal: send a CLI newline (Shift-Enter) to the agent
 
 ---@class herd.Win
 ---@field width number    fraction of columns (0..1)
@@ -17,6 +18,7 @@ local M = {}
 ---@field border string   nvim_open_win border style
 ---@field footer boolean  show "Herd: <agent>" footer
 ---@field winblend number terminal-window blend
+---@field winhighlight string  winhighlight applied to the float (e.g. terminal-bg groups)
 
 ---@class herd.Config
 ---@field tools table<string, herd.Tool>
@@ -34,6 +36,7 @@ local defaults = {
     hide = '<leader><Tab>',      -- (terminal) hide the float from inside
     select = '<leader>;',        -- (normal) grouped picker
     dashboard = '<leader>\\',    -- (normal) pop herdr's full TUI
+    newline = '<S-CR>',          -- (terminal) send a CLI newline (kitty Shift-Enter) to the agent
   },
   win = {
     width = 0.9,
@@ -41,6 +44,7 @@ local defaults = {
     border = 'rounded',
     footer = true,
     winblend = 0,
+    winhighlight = '',
   },
 }
 

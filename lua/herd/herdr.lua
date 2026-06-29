@@ -132,10 +132,10 @@ function M.attach_argv(name)
   return { 'herdr', 'agent', 'attach', name }
 end
 
---- argv to open herdr's full TUI (dashboard escape hatch).
----@return string[]
-function M.dashboard_argv()
-  return { 'herdr' }
+--- Focus a workspace in the herdr client (used to surface the agent pool).
+---@param id string workspace id
+function M.focus_workspace(id)
+  M.run({ 'workspace', 'focus', id }, { quiet = true })
 end
 
 --- Send literal text to an agent (no Enter — review then submit).
