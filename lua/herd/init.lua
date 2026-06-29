@@ -54,7 +54,12 @@ function M.spawn(tool)
     return vim.notify('herd: unknown tool ' .. tostring(tool), vim.log.levels.ERROR)
   end
   local ws = Herdr.ensure_workspace(Config.get().workspace)
-  local agent = Herdr.spawn(Herdr.next_name(tool), vim.fn.getcwd(), def, ws)
+  -- Tag the agent's tab with the originating project so the herdr sidebar reads
+  -- "<herd> · <project>" instead of a bare "herd". Prefer the focused workspace's
+  -- label (nvim's project), falling back to the cwd folder name.
+  local project = Herdr.focused_workspace_label(Config.get().workspace)
+    or vim.fn.fnamemodify(vim.fn.getcwd(), ':t')
+  local agent = Herdr.spawn(Herdr.next_name(tool), vim.fn.getcwd(), def, ws, project)
   if not agent then
     return -- error already surfaced by Herdr.run
   end

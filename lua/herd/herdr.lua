@@ -106,17 +106,42 @@ function M.ensure_workspace(label)
   return created and created.workspace and created.workspace.workspace_id
 end
 
+--- Label of the focused workspace (nvim's project at spawn time), excluding the
+--- given label (the herd workspace itself). Lets spawned agents tag their tab
+--- with the originating project. Returns nil if unresolved.
+---@param exclude? string label to ignore
+---@return string?
+function M.focused_workspace_label(exclude)
+  local list = M.api({ 'workspace', 'list' }, { quiet = true })
+  for _, w in ipairs(list and list.workspaces or {}) do
+    if w.focused and w.label ~= exclude then
+      return w.label
+    end
+  end
+  return nil
+end
+
 --- Spawn an agent in the herdr server, placed in `workspace` (off nvim's view)
---- when given. nvim hosts; the agent is only ever seen through the float that
---- attaches to it.
+--- when given. When `tab_label` is also given the agent gets its own labelled
+--- tab in that workspace, so the herdr sidebar reads "<workspace> · <project>"
+--- instead of just the bare workspace. nvim hosts; the agent is only ever seen
+--- through the float that attaches to it.
 ---@param name string unique agent name
 ---@param cwd string
 ---@param def herd.Tool
 ---@param workspace? string workspace id to place the agent in
+---@param tab_label? string label for the agent's own tab (e.g. the project)
 ---@return herd.Agent?
-function M.spawn(name, cwd, def, workspace)
+function M.spawn(name, cwd, def, workspace, tab_label)
+  local tab
+  if workspace and tab_label then
+    local res = M.api({ 'tab', 'create', '--workspace', workspace, '--no-focus', '--cwd', cwd, '--label', tab_label })
+    tab = res and res.tab and res.tab.tab_id
+  end
   local args = { 'agent', 'start', name, '--cwd', cwd, '--no-focus' }
-  if workspace then
+  if tab then
+    vim.list_extend(args, { '--tab', tab })
+  elseif workspace then
     vim.list_extend(args, { '--workspace', workspace })
   end
   for k, v in pairs(def.env or {}) do

@@ -119,4 +119,51 @@ describe('herd.herdr', function()
     assert.are.equal('claude', agent.name)
     Herdr.api = saved
   end)
+
+  it('spawn creates a labelled tab and starts the agent in it (not --workspace)', function()
+    local calls = {}
+    local saved = Herdr.api
+    Herdr.api = function(args)
+      calls[#calls + 1] = args
+      if args[1] == 'tab' and args[2] == 'create' then
+        return { tab = { tab_id = 'wH:t5' } }
+      end
+      return { agent = { name = 'claude' } }
+    end
+    Herdr.spawn('claude', '/tmp/proj', { cmd = { 'claude' } }, 'wH', 'dotfiles-config')
+    local tabcmd = table.concat(calls[1], ' ')
+    assert.are.equal('tab', calls[1][1])
+    assert.are.equal('create', calls[1][2])
+    assert.is_truthy(tabcmd:find('--workspace wH', 1, true))
+    assert.is_truthy(tabcmd:find('--label dotfiles-config', 1, true))
+    local startcmd = table.concat(calls[2], ' ')
+    assert.is_truthy(startcmd:find('--tab wH:t5', 1, true))
+    assert.is_nil(startcmd:find('--workspace')) -- placed via --tab, not --workspace
+    assert.is_nil(startcmd:find('--split'))
+    Herdr.api = saved
+  end)
+
+  it('focused_workspace_label returns the focused workspace, excluding the herd label', function()
+    local saved = Herdr.api
+    Herdr.api = function(args)
+      if args[1] == 'workspace' and args[2] == 'list' then
+        return { workspaces = {
+          { workspace_id = 'w6', label = 'dotfiles-config', focused = true },
+          { workspace_id = 'wH', label = 'herd', focused = false },
+        } }
+      end
+      return {}
+    end
+    assert.are.equal('dotfiles-config', Herdr.focused_workspace_label('herd'))
+    Herdr.api = saved
+  end)
+
+  it('focused_workspace_label is nil when only the herd workspace is focused', function()
+    local saved = Herdr.api
+    Herdr.api = function()
+      return { workspaces = { { workspace_id = 'wH', label = 'herd', focused = true } } }
+    end
+    assert.is_nil(Herdr.focused_workspace_label('herd'))
+    Herdr.api = saved
+  end)
 end)
