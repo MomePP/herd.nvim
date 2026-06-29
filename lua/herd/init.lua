@@ -142,7 +142,7 @@ function M.dashboard()
   end
   local ws = Herdr.ensure_workspace(Config.get().workspace)
   if not ws then
-    return vim.notify('herd: no herd workspace yet — spawn an agent first', vim.log.levels.WARN)
+    return vim.notify('herd: could not resolve the herd workspace', vim.log.levels.WARN)
   end
   Herdr.focus_workspace(ws)
 end
@@ -197,6 +197,8 @@ function M.setup(opts)
       fn()
     elseif sub:match('^spawn%s') then
       M.spawn(sub:gsub('^spawn%s+', ''))
+    elseif sub == 'spawn' then
+      vim.notify('herd: :Herd spawn <tool> — needs a tool name', vim.log.levels.WARN)
     else
       vim.notify('herd: unknown subcommand ' .. sub, vim.log.levels.ERROR)
     end

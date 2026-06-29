@@ -9,7 +9,7 @@ local M = {}
 ---@field send string|false     visual: send the selection to the active agent
 ---@field hide string|false     terminal: hide the float from inside
 ---@field select string|false   normal: grouped picker (switch / spawn)
----@field dashboard string|false normal: pop herdr's full TUI in a float
+---@field dashboard string|false normal: focus the dedicated herd workspace in herdr
 ---@field newline string|false  terminal: send a CLI newline (Shift-Enter) to the agent
 
 ---@class herd.Win
@@ -35,7 +35,7 @@ local defaults = {
     send = '<leader><Tab>',      -- (visual) send selection to the active agent
     hide = '<leader><Tab>',      -- (terminal) hide the float from inside
     select = '<leader>;',        -- (normal) grouped picker
-    dashboard = '<leader>\\',    -- (normal) pop herdr's full TUI
+    dashboard = '<leader>\\',    -- (normal) focus the dedicated herd workspace
     newline = '<S-CR>',          -- (terminal) send a CLI newline (kitty Shift-Enter) to the agent
   },
   win = {

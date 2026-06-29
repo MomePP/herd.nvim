@@ -18,7 +18,7 @@ nvim-as-host model.
 REQUIREMENTS                                               *herd-requirements*
 
 - Neovim >= 0.10        (uses |getregion()|)
-- herdr >= 0.7          on $PATH, with a running server
+- herdr >= 0.7.1        on $PATH, with a running server
                         (may be a headless daemon; nvim need not run inside
                         a herdr pane)
 

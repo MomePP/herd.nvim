@@ -28,7 +28,7 @@ keybinds; there is no multiplexer round-trip.
 ## 📋 Requirements
 
 - Neovim **≥ 0.10** (uses `vim.fn.getregion()`)
-- [herdr](https://herdr.dev/docs/install/) **≥ 0.7** on `$PATH`
+- [herdr](https://herdr.dev/docs/install/) **≥ 0.7.1** on `$PATH` (verified against 0.7.1; uses `agent attach/send`, `workspace list/create/focus`)
 - A running herdr server — launch `herdr` as a headless daemon or in any
   terminal; nvim does **not** need to run inside a herdr pane.
 
