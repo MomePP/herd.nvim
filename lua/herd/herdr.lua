@@ -171,8 +171,14 @@ function M.spawn(name, cwd, def, workspace, tab_label)
   end
   args[#args + 1] = '--'
   vim.list_extend(args, def.cmd)
-  local res = M.api(args)
-  return res and res.agent
+  local started = M.api(args)
+  local agent = started and started.agent
+  -- The per-agent tab also holds the tab's initial empty pane, so the agent
+  -- starts split. Zoom the agent's pane so it fills the tab when viewed in herdr.
+  if agent and tab and agent.pane_id then
+    M.api({ 'pane', 'zoom', agent.pane_id, '--on' })
+  end
+  return agent
 end
 
 --- argv to attach an nvim :terminal to a running agent's PTY (clean stream).
