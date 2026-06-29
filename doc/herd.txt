@@ -3,23 +3,27 @@
 ==============================================================================
 INTRODUCTION                                                            *herd*
 
-herd.nvim drives herdr (https://herdr.dev) coding agents from Neovim, for when
-herdr is the host: nvim runs in one herdr pane and CLI agents (claude,
-opencode, ...) run in sibling panes. Spawn a tool and zoom it fullscreen,
-toggle to a live agent, and send the visual selection — mirroring the
-sidekick.nvim UX without nvim hosting the agents.
+herd.nvim makes Neovim the top-level UI for your herdr (https://herdr.dev)
+coding agents. herdr runs as a background daemon that owns each agent's PTY
+— so herdr's status hooks and grouped agent dashboard keep working — while
+agents are shown inside nvim floating terminals attached via
+`herdr agent attach`. All navigation uses standard nvim keybinds; there is
+no multiplexer round-trip.
 
-It talks to the `herdr` CLI only; there is no embedded terminal.
+Inspired by sidekick.nvim. Where sidekick uses tmux/zellij as the backend,
+herd uses herdr — gaining herdr's status hooks and dashboard, with the same
+nvim-as-host model.
 
 ==============================================================================
 REQUIREMENTS                                               *herd-requirements*
 
 - Neovim >= 0.10        (uses |getregion()|)
-- herdr >= 0.7          on $PATH, with a running server you are attached to
-- nvim launched inside a herdr pane (recommended)
+- herdr >= 0.7.1        on $PATH, with a running server
+                        (may be a headless daemon; nvim need not run inside
+                        a herdr pane)
 
 ==============================================================================
-SETUP                                                             *herd.setup()*
+SETUP                                                           *herd.setup()*
 
 >lua
     require('herd').setup({
@@ -30,52 +34,92 @@ SETUP                                                             *herd.setup()*
     })
 <
 
-Options ~                                                         *herd-config*
+Options ~                                                       *herd-config*
 
     tools   table<string, { cmd: string[], env?: table }>   (default: {})
             Spawnable agents. The key is the tool name; `cmd` is the argv.
-    keys    { toggle, send, select }   (set any to false to disable)
-            Default: toggle = false, send = "<leader><Tab>",
-                     select = "<leader><Tab>"
-    zoom    boolean   (default: true)
-            Zoom the agent pane fullscreen on toggle/spawn.
+
+    keys    { toggle, send, hide, select, dashboard, newline }
+            Set any to false to disable. Defaults:
+              toggle    = "<leader><Tab>"   (normal)   toggle agent float; count = slot
+              send      = "<leader><Tab>"   (visual)   send selection
+              hide      = "<leader><Tab>"   (terminal) hide the float
+              select    = "<leader>;"       (normal)   grouped picker
+              dashboard = "<leader>\"       (normal)   focus herd workspace in herdr
+              newline   = "<S-CR>"          (terminal) send CLI newline (Shift-Enter)
+
+    win     { width, height, border, footer, winblend, winhighlight }
+              width        = 0.9      fraction of &columns
+              height       = 0.9      fraction of &lines
+              border       = "rounded"
+              footer       = true     show "Herd: <agent>" footer
+              winblend     = 0
+              winhighlight = ""       winhighlight string applied to the float
+                                      (e.g. "Normal:MyTermBg" for a
+                                      transparent/terminal-styled overlay)
+
+    workspace  string                                     (default: "herd")
+               herdr workspace label for spawned agents; herd.nvim
+               finds or creates this workspace on each spawn to keep agents
+               off your project workspaces/tabs. Configurable.
 
 ==============================================================================
-MAPPINGS                                                        *herd-mappings*
+MAPPINGS                                                      *herd-mappings*
 
-    <leader><Tab>   (normal)  select: switch to a running agent, or spawn a tool
-    <leader><Tab>   (visual)  send the selection to the active agent
-    toggle          (normal)  off by default; set keys.toggle to jump straight
-                              to this cwd's agent / spawn if none
-
-==============================================================================
-NAVIGATION                                                       *herd-return*
-
-herd is a spawner; moving nvim<->agent belongs to your multiplexer. The agent
-is spawned as a split in nvim's tab (nvim-left / agent-right), so use herdr's
-directional pane focus (tab-scoped, reliable across workspaces): >toml
-    [keys]
-    focus_pane_left  = "prefix+h"   # -> nvim
-    focus_pane_right = "prefix+l"   # -> agent
-<
-Avoid herdr last_pane/cycle_pane_* here — they are global/cycle and won't
-reliably return to this project's agent after switching workspaces.
-
-==============================================================================
-COMMANDS                                                        *herd-commands*
-
-    :Herd [toggle|select|send]      default: toggle
+    <leader><Tab>   (normal)    Toggle this cwd's agent float. <count><key> targets
+                                slot N. An empty slot spawns the inferred tool's
+                                next clone (inferred: current target's base →
+                                first project agent's base → sole configured tool
+                                → else picker). Falls back to picker when no
+                                agent runs here.
+    <leader><Tab>   (visual)    Send selection to the active agent (no Enter
+                                appended). The float opens so you can review
+                                and submit.
+    <leader><Tab>   (terminal)  Hide the float from inside (buffer-local map).
+    <leader>;       (normal)    Grouped picker (current project only): switch
+                                to a running agent or spawn a configured tool.
+                                Rows show "name  [status]".
+    <leader>\       (normal)    Focus the dedicated herd workspace in herdr
+                                (`herdr workspace focus <id>`), surfacing all
+                                agents in herdr's native view.
+    <S-CR>          (terminal)  Send a CLI newline (kitty Esc[13;2u) to the
+                                agent — buffer-local map for multi-line prompts
+                                without submitting.
 
 ==============================================================================
-API                                                                  *herd-api*
+PERSISTENCE                                                 *herd-persistence*
+
+herdr owns each agent's PTY. Hiding the float (or closing nvim entirely)
+only detaches the nvim terminal — the agent keeps running in herdr. Spawned
+agents live in a dedicated herdr workspace (default label "herd"), off your
+project workspaces/tabs; the workspace is found-or-created on each spawn. To
+reattach:
+
+- Run <leader>; (picker) or `:Herd select` — lists agents for the current project.
+- Run `:Herd toggle` to reopen the float for the current project's agent.
+- Use <leader>\ (dashboard) to focus the herd workspace in herdr and surface
+  agents from all projects in herdr's native view.
+
+Agents are rediscovered via `herdr agent list`; as long as the herdr server
+is running, sessions persist across nvim restarts.
+
+==============================================================================
+COMMANDS                                                      *herd-commands*
+
+    :Herd [toggle|select|send|dashboard]    default: toggle
+    :Herd spawn <tool>
+
+==============================================================================
+API                                                                *herd-api*
 
     require('herd').toggle()
     require('herd').select()
     require('herd').send()
+    require('herd').dashboard()
     require('herd').spawn(tool)
 
 ==============================================================================
-HEALTH                                                            *herd-health*
+HEALTH                                                          *herd-health*
 
     :checkhealth herd
 

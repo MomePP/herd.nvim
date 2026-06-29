@@ -233,9 +233,12 @@ require('herd').setup({
 
 - **Multi-line `herdr agent send`**: confirm newline handling for a multi-line
   visual selection (old code used `pane send-text` with multiline as one argv).
-- **Spawn placement with no attached herdr client** (pure-daemon case): confirm
-  `agent start` succeeds against the server when nvim is not itself inside a
-  herdr client, and that the server-side pane lands somewhere harmless.
+- ~~**Spawn placement with no attached herdr client**~~ **RESOLVED**: agents
+  are placed in a dedicated, found-or-created herdr workspace (label
+  `workspace`, default `'herd'`) via `agent start --workspace <id>
+  --no-focus`. herdr auto-closes emptied tabs; the workspace is reused across
+  spawns. This keeps agents off nvim's pane when nvim runs inside a herdr
+  session.
 - **Attach reflow**: confirm the attached agent reflows to the nvim float's size
   on `VimResized` / window resize.
 - **Double-attach mirroring**: viewing the same agent in the popped herdr TUI
@@ -248,3 +251,54 @@ README and `doc/herd.txt` are **rewritten**, not tweaked: the current text
 argues the opposite premise ("herdr is the host, nvim is a pane"). New docs
 describe the nvim-host / herdr-backend model, the keymaps, and the persistence
 behavior.
+
+## As-built changes
+
+The following shipped behaviour differs from or extends the original design:
+
+### dashboard_argv removed; dashboard = workspace focus
+`dashboard_argv()` was never added to `herdr.lua`. The `dashboard` action
+(`M.dashboard()` in `init.lua`) instead calls `Herdr.ensure_workspace(label)`
+(→ `herdr workspace list` / `herdr workspace create --no-focus --label <label>`)
+and then `Herdr.focus_workspace(id)` (→ `herdr workspace focus <id>`).
+**No float is opened.** The herdr client comes to the foreground showing the
+dedicated herd workspace. Anywhere the design says "float running `dashboard_argv()`"
+or "pop herdr's full TUI in a float", read instead: "focus the dedicated herd
+workspace in herdr".
+
+### Dedicated workspace placement (resolved open item, now shipped)
+Agents are spawned with `herdr agent start <name> --cwd <cwd> --no-focus
+--workspace <ws_id> -- <argv>`. The workspace id is obtained from
+`ensure_workspace(label)` which does a list-then-create round trip. The
+`workspace` config option (default `'herd'`) controls the label. This keeps
+all herd-spawned agents off the user's project workspaces/tabs.
+
+### Additional config options shipped
+- `keys.newline` (default `'<S-CR>'`) — terminal-mode buffer-local map that
+  sends kitty Shift-Enter (`\27[13;2u`) to the agent without submitting.
+  Registered via a `TermOpen` autocmd alongside `keys.hide`.
+- `win.winhighlight` (default `''`) — winhighlight string applied to the
+  float window (`vim.wo[win].winhighlight`), enabling a transparent or
+  terminal-styled overlay (mirrors sidekick.nvim by mapping float highlight
+  groups to terminal background groups).
+- `workspace` (default `'herd'`) — see above.
+
+### spawn-on-empty-slot (toggle with count)
+When `<count><toggle>` addresses a slot with no live agent, `Target.infer_base`
+determines which configured tool to spawn:
+1. Current target's base (strip trailing `_<n>` suffix) if it is a configured tool.
+2. Else the first cwd-scoped agent's base if it is a configured tool.
+3. Else the sole configured tool if exactly one is configured.
+4. Else fall to the picker.
+This is implemented in `lua/herd/target.lua` (`infer_base`).
+
+### cwd-scoped picker with trimmed row labels
+`picker.lua` calls `Herdr.agents(vim.fs.normalize(vim.fn.getcwd()))`, so the
+picker is scoped to the **current project cwd**. Row labels are `name  [status]`
+(no cwd column — redundant after scoping). The design's "grouped by cwd"
+presentation and cwd column are superseded.
+
+### send defers float open via vim.schedule
+`M.send()` in `init.lua` calls `Herdr.agent_send(a.name, text)` synchronously
+(the CLI call), then opens the float in a `vim.schedule` callback so the text
+delivery and the Esc key-feed have flushed before the window changes.

@@ -80,16 +80,42 @@ function M.next_name(tool)
   return tool .. '_' .. i
 end
 
---- Spawn an agent in the herdr server.
+--- Clone slot name: slot 1 is the base, slot n>1 is `base_n`.
+---@param base string
+---@param n integer
+---@return string
+function M.slot_name(base, n)
+  return n <= 1 and base or (base .. '_' .. n)
+end
+
+--- Find-or-create the dedicated workspace that hosts herd agents (kept off the
+--- user's project workspaces/tabs). Matched by label. Returns its id, or nil.
+---@param label string
+---@return string?
+function M.ensure_workspace(label)
+  local list = M.api({ 'workspace', 'list' }, { quiet = true })
+  for _, w in ipairs(list and list.workspaces or {}) do
+    if w.label == label then
+      return w.workspace_id
+    end
+  end
+  local created = M.api({ 'workspace', 'create', '--no-focus', '--label', label })
+  return created and created.workspace and created.workspace.workspace_id
+end
+
+--- Spawn an agent in the herdr server, placed in `workspace` (off nvim's view)
+--- when given. nvim hosts; the agent is only ever seen through the float that
+--- attaches to it.
 ---@param name string unique agent name
 ---@param cwd string
 ---@param def herd.Tool
+---@param workspace? string workspace id to place the agent in
 ---@return herd.Agent?
-function M.spawn(name, cwd, def)
-  -- Split to the right of the focused (nvim) pane so the agent lives in nvim's
-  -- tab, nvim-left / agent-right. The return trip is then tab-scoped directional
-  -- focus (Ctrl-a h/l) — reliable across workspace switches, unlike global last_pane.
-  local args = { 'agent', 'start', name, '--cwd', cwd, '--no-focus', '--split', 'right' }
+function M.spawn(name, cwd, def, workspace)
+  local args = { 'agent', 'start', name, '--cwd', cwd, '--no-focus' }
+  if workspace then
+    vim.list_extend(args, { '--workspace', workspace })
+  end
   for k, v in pairs(def.env or {}) do
     vim.list_extend(args, { '--env', ('%s=%s'):format(k, tostring(v)) })
   end
@@ -99,21 +125,24 @@ function M.spawn(name, cwd, def)
   return res and res.agent
 end
 
----@param name string agent name or pane id
-function M.focus(name)
-  M.run({ 'agent', 'focus', name }, { quiet = true })
+--- argv to attach an nvim :terminal to a running agent's PTY (clean stream).
+---@param name string
+---@return string[]
+function M.attach_argv(name)
+  return { 'herdr', 'agent', 'attach', name }
 end
 
---- Zoom a pane fullscreen (no-op unless the tab has ≥2 panes).
----@param pane string
-function M.zoom(pane)
-  M.run({ 'pane', 'zoom', '--on', '--pane', pane }, { quiet = true })
+--- Focus a workspace in the herdr client (used to surface the agent pool).
+---@param id string workspace id
+function M.focus_workspace(id)
+  M.run({ 'workspace', 'focus', id }, { quiet = true })
 end
 
----@param pane string
+--- Send literal text to an agent (no Enter — review then submit).
+---@param name string
 ---@param text string
-function M.send_text(pane, text)
-  M.run({ 'pane', 'send-text', pane, text })
+function M.agent_send(name, text)
+  M.run({ 'agent', 'send', name, text })
 end
 
 return M
