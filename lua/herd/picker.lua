@@ -42,7 +42,8 @@ end
 --- called on cancel).
 ---@param on_choice fun(item: herd.PickItem)
 function M.open(on_choice)
-  local items = M.items(Herdr.agents(), Config.get().tools)
+  -- scope the picker to agents in the current project (sidekick `filter.cwd`)
+  local items = M.items(Herdr.agents(vim.fs.normalize(vim.fn.getcwd())), Config.get().tools)
   if #items == 0 then
     return vim.notify('herd: no agents running and no tools configured', vim.log.levels.WARN)
   end
