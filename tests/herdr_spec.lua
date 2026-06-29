@@ -95,4 +95,18 @@ describe('herd.herdr', function()
     assert.is_truthy(joined:find('-- claude --foo', 1, true))
     Herdr.api = saved
   end)
+
+  it('spawn omits --workspace and still spawns when no workspace is given', function()
+    local got
+    local saved = Herdr.api
+    Herdr.api = function(args) got = args; return { agent = { name = 'claude' } } end
+    local agent = Herdr.spawn('claude', '/tmp/proj', { cmd = { 'claude' } })
+    local joined = table.concat(got, ' ')
+    assert.is_nil(joined:find('--workspace'))
+    assert.is_nil(joined:find('--split'))
+    assert.is_truthy(joined:find('agent start claude', 1, true))
+    assert.is_truthy(joined:find('-- claude', 1, true))
+    assert.are.equal('claude', agent.name)
+    Herdr.api = saved
+  end)
 end)
