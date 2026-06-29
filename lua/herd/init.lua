@@ -34,7 +34,13 @@ end
 ---@param a herd.Agent
 local function show(a)
   M.target = a.name
-  Terminal.open(a.name, { cwd = a.cwd })
+  -- Defer the float open: when show() runs inside a vim.ui.select callback (the
+  -- picker), opening the float + attach synchronously races the picker teardown
+  -- and the attach process gets killed (float blinks shut). A scheduled open runs
+  -- after the callback returns and is reliable from every caller.
+  vim.schedule(function()
+    Terminal.open(a.name, { cwd = a.cwd })
+  end)
 end
 
 --- Spawn a configured tool as a new agent and show it.
