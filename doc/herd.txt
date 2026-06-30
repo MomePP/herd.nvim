@@ -48,7 +48,7 @@ Options ~                                                       *herd-config*
               dashboard = false             (normal)   unmapped; use :Herd dashboard
               newline   = "<S-CR>"          (terminal) send CLI newline (Shift-Enter)
 
-    win     { width, height, border, footer, winblend, winhighlight }
+    win     { width, height, border, footer, winblend, winhighlight, mouse }
               width        = 1        fraction of &columns (1 = fullscreen)
               height       = 1        fraction of &lines   (1 = fullscreen)
               border       = { '', '', '', '', ' ', ' ', ' ', '' }
@@ -58,6 +58,12 @@ Options ~                                                       *herd-config*
               winhighlight = ""       set terminal-bg highlight groups here
                                       for a transparent overlay (e.g. Snacks:
                                       Normal:SnacksTerminalNormal,...)
+              mouse        = true     nvim owns the mouse in the float (the agent
+                                      gets scroll/click; Shift+drag to select).
+                                      false hands the mouse to the terminal while a
+                                      float is focused, so a plain drag selects text
+                                      natively — at the cost of the agent's own mouse
+                                      inside the float.
 
     workspace  string                                     (default: "herd.nvim")
                herdr workspace label for spawned agents; herd.nvim

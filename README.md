@@ -85,6 +85,9 @@ require('herd').setup({
     footer      = true,   -- show "Herd: <agent>" footer
     winblend    = 0,
     winhighlight = '',    -- set terminal-bg highlight groups here for a transparent overlay
+    mouse       = true,   -- nvim owns the mouse in the float (agent gets scroll/click;
+                          -- Shift+drag to select). false = hand the mouse to the terminal
+                          -- so a plain drag selects natively (agent loses its mouse in the float).
   },
 })
 ```

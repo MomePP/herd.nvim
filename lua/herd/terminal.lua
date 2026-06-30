@@ -112,4 +112,16 @@ function M.toggle(name, opts)
   end
 end
 
+--- Is `buf` one of herd's agent float buffers?
+---@param buf integer
+---@return boolean
+function M.is_float_buf(buf)
+  for _, e in pairs(M.reg) do
+    if e.buf == buf then
+      return true
+    end
+  end
+  return false
+end
+
 return M

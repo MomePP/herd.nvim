@@ -19,6 +19,10 @@ local M = {}
 ---@field footer boolean  show "Herd: <agent>" footer
 ---@field winblend number terminal-window blend
 ---@field winhighlight string  winhighlight applied to the float (e.g. terminal-bg groups)
+---@field mouse boolean  true: nvim owns the mouse in the float (agent gets scroll/click,
+---                      use Shift+drag to select). false: hand the mouse to the terminal
+---                      while a float is focused so a plain drag selects natively (the
+---                      agent loses its mouse inside the float).
 
 ---@class herd.Config
 ---@field tools table<string, herd.Tool>
@@ -49,6 +53,7 @@ local defaults = {
     footer = true,
     winblend = 0,
     winhighlight = '',
+    mouse = true, -- false hands the mouse to the terminal in floats (plain-drag selection)
   },
 }
 

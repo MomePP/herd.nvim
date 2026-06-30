@@ -204,6 +204,34 @@ function M.setup(opts)
     })
   end
 
+  -- win.mouse = false: hand the mouse to the terminal (Ghostty) while an agent
+  -- float is focused, so a plain click-drag does native terminal selection instead
+  -- of being forwarded to the agent. Restored on leaving the float.
+  if cfg.win.mouse == false then
+    local grp = vim.api.nvim_create_augroup('herd_mouse', { clear = true })
+    local saved
+    vim.api.nvim_create_autocmd('BufEnter', {
+      group = grp,
+      callback = function(ev)
+        if Terminal.is_float_buf(ev.buf) then
+          if saved == nil then
+            saved = vim.o.mouse
+          end
+          vim.o.mouse = ''
+        end
+      end,
+    })
+    vim.api.nvim_create_autocmd('BufLeave', {
+      group = grp,
+      callback = function(ev)
+        if Terminal.is_float_buf(ev.buf) and saved ~= nil then
+          vim.o.mouse = saved
+          saved = nil
+        end
+      end,
+    })
+  end
+
   vim.api.nvim_create_user_command('Herd', function(a)
     local sub = a.args ~= '' and a.args or 'toggle'
     local fn = ({ toggle = M.toggle, select = M.select, send = M.send, dashboard = M.dashboard })[sub]

@@ -45,6 +45,12 @@ describe('herd.terminal', function()
     assert.are.equal(1, #spawned) -- still only the first attach
   end)
 
+  it('is_float_buf recognises herd float buffers only', function()
+    Terminal.open('claude')
+    assert.is_true(Terminal.is_float_buf(Terminal.reg['claude'].buf))
+    assert.is_false(Terminal.is_float_buf(vim.api.nvim_create_buf(false, true)))
+  end)
+
   it('toggle flips visibility', function()
     Terminal.toggle('claude') -- opens
     assert.is_true(Terminal.is_open('claude'))
