@@ -1,18 +1,19 @@
 # 🐑 herd.nvim
 
-> Drive [herdr](https://herdr.dev) coding agents from Neovim — **nvim is the host, herdr is the backend daemon**.
+> Drive [herdr](https://herdr.dev) coding agents from Neovim — **nvim is the host, herdr is the backend daemon** (default float mode).
 
 `herd.nvim` is a Neovim plugin that makes nvim the top-level UI for your
 [herdr](https://herdr.dev) coding agents. herdr runs as a background daemon
 that **owns each agent's PTY** — so herdr's status hooks and grouped agent
-dashboard keep working — while agents are shown inside **nvim floating
-terminals** via `herdr agent attach`. All navigation uses standard nvim
-keybinds; there is no multiplexer round-trip.
+dashboard keep working — while, in the default `mode = 'float'`, agents are
+shown inside **nvim floating terminals** via `herdr agent attach`. All
+navigation uses standard nvim keybinds; there is no multiplexer round-trip.
+(`mode = 'native'` is the exception — see "Native mode" below.)
 
 > Inspired by [`folke/sidekick.nvim`](https://github.com/folke/sidekick.nvim). Where
 > sidekick makes nvim the host with tmux/zellij as the backend, herd uses the same
-> nvim-as-host model with **herdr** as the backend — gaining herdr's status hooks
-> and grouped agent dashboard.
+> nvim-as-host model (in float mode) with **herdr** as the backend — gaining herdr's
+> status hooks and grouped agent dashboard.
 
 ## ✨ Features
 
