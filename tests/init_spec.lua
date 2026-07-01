@@ -70,7 +70,7 @@ describe('herd init', function()
     Herdr.next_name = function(tool) return tool end
     Herdr.spawn_native = function(name) return { name = name, tab_id = 'w6:t9' } end
     local pruned
-    Herdr.prune_workspace = function(ws, keep) pruned = { ws, keep } end
+    Herdr.prune_workspace = function(ws, keep, prefix) pruned = { ws, keep, prefix } end
     local focused
     Herdr.focus_tab = function(id) focused = id end
     local saved_notify = vim.notify
@@ -84,7 +84,7 @@ describe('herd init', function()
       saved_server, saved_next, saved_spawn_native, saved_prune, saved_focus
     vim.env.HERDR_TAB_ID, vim.env.HERDR_WORKSPACE_ID = saved_tab_env, saved_ws_env
 
-    assert.are.same({ 'w6', 'w6:t9' }, pruned)
+    assert.are.same({ 'w6', 'w6:t9', 'herd:' }, pruned)
     assert.are.equal('w6:t9', focused)
   end)
 

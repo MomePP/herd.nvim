@@ -58,10 +58,13 @@ function M.spawn(tool)
   if not def then
     return vim.notify('herd: unknown tool ' .. tostring(tool), vim.log.levels.ERROR)
   end
-  local agent, prune_ws
+  local agent, prune_ws, prune_prefix
   if Config.get().mode == 'native' then
     agent = Herdr.spawn_native(Herdr.next_name(tool), vim.fn.getcwd(), def)
     prune_ws = vim.env.HERDR_WORKSPACE_ID
+    -- native reaps only herd-created tabs (the workspace also holds nvim's own
+    -- tab and the user's tabs); float's dedicated workspace reaps all agentless.
+    prune_prefix = Herdr.NATIVE_TAB_MARKER
   else
     local ws = Herdr.ensure_workspace(Config.get().workspace)
     -- Tag the agent's tab with the originating project so the herdr sidebar reads
@@ -76,7 +79,7 @@ function M.spawn(tool)
     return -- error already surfaced by Herdr.run
   end
   if prune_ws then
-    Herdr.prune_workspace(prune_ws, agent.tab_id) -- reap tabs left by killed agents
+    Herdr.prune_workspace(prune_ws, agent.tab_id, prune_prefix) -- reap tabs left by killed agents
   end
   show(agent)
   vim.notify('herd: spawned ' .. agent.name)

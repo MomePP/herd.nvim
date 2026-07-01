@@ -3,6 +3,12 @@
 --- interactive `herdr` client is attached to.
 local M = {}
 
+--- Label prefix on every native-mode agent tab, so the reaper can tell
+--- herd-created tabs apart from nvim's own tab / the user's other tabs when
+--- they share a workspace. Persisted in the herdr tab label, so it survives
+--- nvim restarts (unlike session-local tab-id tracking).
+M.NATIVE_TAB_MARKER = 'herd:'
+
 --- Run a herdr CLI command. Returns stdout, or nil on failure.
 ---@param args string[]
 ---@param opts? { quiet?: boolean }
@@ -112,9 +118,17 @@ end
 --- pane but leaves the (now agentless) tab behind. Close every tab in the
 --- workspace that no live agent occupies. `keep_tab` is never closed (the tab of
 --- an agent just spawned, which may not be in `agent list` yet).
+---
+--- `label_prefix` guards native mode, where `ws_id` is nvim's *own* project
+--- workspace (shared with nvim's host tab and the user's other tabs, none of
+--- which host an agent): when set, only agentless tabs whose label starts with
+--- the prefix (herd-created native tabs, see `M.NATIVE_TAB_MARKER`) are reaped.
+--- When nil (float mode's dedicated workspace holds only herd agent tabs) every
+--- agentless tab is reaped, unchanged.
 ---@param ws_id string
 ---@param keep_tab? string tab id to always keep
-function M.prune_workspace(ws_id, keep_tab)
+---@param label_prefix? string only reap agentless tabs whose label starts here
+function M.prune_workspace(ws_id, keep_tab, label_prefix)
   local agents = M.api({ 'agent', 'list' }, { quiet = true })
   local live = {}
   for _, a in ipairs(agents and agents.agents or {}) do
@@ -124,7 +138,8 @@ function M.prune_workspace(ws_id, keep_tab)
   end
   local tabs = M.api({ 'tab', 'list', '--workspace', ws_id }, { quiet = true })
   for _, t in ipairs(tabs and tabs.tabs or {}) do
-    if t.tab_id and t.tab_id ~= keep_tab and not live[t.tab_id] then
+    local owned = not label_prefix or (t.label ~= nil and vim.startswith(t.label, label_prefix))
+    if t.tab_id and t.tab_id ~= keep_tab and not live[t.tab_id] and owned then
       M.run({ 'tab', 'close', t.tab_id }, { quiet = true })
     end
   end
@@ -202,7 +217,10 @@ end
 ---@return herd.Agent?
 function M.spawn_native(name, cwd, def)
   local ws = vim.env.HERDR_WORKSPACE_ID
-  local created = M.api({ 'tab', 'create', '--workspace', ws, '--cwd', cwd, '--label', name, '--no-focus' })
+  -- Prefix the label so prune_workspace can identify this as a herd-created
+  -- tab (the workspace is shared with nvim's own tab and the user's tabs).
+  local label = M.NATIVE_TAB_MARKER .. name
+  local created = M.api({ 'tab', 'create', '--workspace', ws, '--cwd', cwd, '--label', label, '--no-focus' })
   local tab = created and created.tab and created.tab.tab_id
   if not tab then
     return nil -- error already surfaced by Herdr.run; no safe fallback placement

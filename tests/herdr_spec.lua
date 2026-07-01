@@ -187,7 +187,7 @@ describe('herd.herdr', function()
     assert.are.equal('tab', calls[1][1])
     assert.are.equal('create', calls[1][2])
     assert.is_truthy(tabcmd:find('--workspace w6', 1, true))
-    assert.is_truthy(tabcmd:find('--label claude', 1, true))
+    assert.is_truthy(tabcmd:find('--label herd:claude', 1, true))
     assert.is_truthy(tabcmd:find('--cwd /tmp/proj', 1, true))
     assert.is_truthy(tabcmd:find('--no-focus', 1, true))
 
@@ -271,6 +271,36 @@ describe('herd.herdr', function()
     end
     Herdr.prune_workspace('wH', 'wH:t3') -- keep t3 (just-spawned, maybe not in list yet)
     assert.are.same({ 'wH:t2' }, closed) -- t1 live, t3 kept, only dead t2 closed
+    Herdr.api, Herdr.run = saved_api, saved_run
+  end)
+
+  it('prune_workspace with a label_prefix reaps only herd-marked agentless tabs (native mode)', function()
+    local closed = {}
+    local saved_api, saved_run = Herdr.api, Herdr.run
+    Herdr.api = function(args)
+      if args[1] == 'agent' and args[2] == 'list' then
+        -- t9 hosts a live herd agent; nothing else does
+        return { agents = { { name = 'claude', tab_id = 'w6:t9' } } }
+      end
+      if args[1] == 'tab' and args[2] == 'list' then
+        return { tabs = {
+          { tab_id = 'w6:t1', label = 'nvim' },          -- nvim's own tab: no marker, agentless
+          { tab_id = 'w6:t2', label = 'server' },        -- user's shell tab: no marker, agentless
+          { tab_id = 'w6:t8', label = 'herd:claude_2' }, -- dead herd tab: marker, agentless
+          { tab_id = 'w6:t9', label = 'herd:claude' },   -- live herd tab: marker, has agent
+        } }
+      end
+      return {}
+    end
+    Herdr.run = function(args)
+      if args[1] == 'tab' and args[2] == 'close' then
+        closed[#closed + 1] = args[3]
+      end
+    end
+    Herdr.prune_workspace('w6', nil, 'herd:')
+    -- ONLY the dead herd-marked tab is closed; nvim's tab, the user's tab, and
+    -- the live herd tab all survive.
+    assert.are.same({ 'w6:t8' }, closed)
     Herdr.api, Herdr.run = saved_api, saved_run
   end)
 end)
