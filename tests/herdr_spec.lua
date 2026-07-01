@@ -181,13 +181,13 @@ describe('herd.herdr', function()
       return {}
     end
 
-    local agent = Herdr.spawn_native('claude', '/tmp/proj', { cmd = { 'claude' } })
+    local agent = Herdr.spawn_native('claude', '/tmp/proj', { cmd = { 'claude' } }, 'dotfiles')
 
     local tabcmd = table.concat(calls[1], ' ')
     assert.are.equal('tab', calls[1][1])
     assert.are.equal('create', calls[1][2])
     assert.is_truthy(tabcmd:find('--workspace w6', 1, true))
-    assert.is_truthy(tabcmd:find('--label herd:claude', 1, true))
+    assert.is_truthy(tabcmd:find('--label dotfiles:claude', 1, true))
     assert.is_truthy(tabcmd:find('--cwd /tmp/proj', 1, true))
     assert.is_truthy(tabcmd:find('--no-focus', 1, true))
 
@@ -219,7 +219,7 @@ describe('herd.herdr', function()
       return {} -- 'tab create' fails: no `.tab` in the response
     end
 
-    local agent = Herdr.spawn_native('claude', '/tmp/proj', { cmd = { 'claude' } })
+    local agent = Herdr.spawn_native('claude', '/tmp/proj', { cmd = { 'claude' } }, 'dotfiles')
 
     assert.is_nil(agent)
     assert.are.equal(1, #calls) -- only the failed tab-create call, no agent start
@@ -274,20 +274,21 @@ describe('herd.herdr', function()
     Herdr.api, Herdr.run = saved_api, saved_run
   end)
 
-  it('prune_workspace with a label_prefix reaps only herd-marked agentless tabs (native mode)', function()
+  it('prune_workspace with a "<project>:" label_prefix reaps only this project\'s dead agent tabs', function()
     local closed = {}
     local saved_api, saved_run = Herdr.api, Herdr.run
     Herdr.api = function(args)
       if args[1] == 'agent' and args[2] == 'list' then
-        -- t9 hosts a live herd agent; nothing else does
+        -- t9 hosts a live dotfiles agent; nothing else does
         return { agents = { { name = 'claude', tab_id = 'w6:t9' } } }
       end
       if args[1] == 'tab' and args[2] == 'list' then
         return { tabs = {
-          { tab_id = 'w6:t1', label = 'nvim' },          -- nvim's own tab: no marker, agentless
-          { tab_id = 'w6:t2', label = 'server' },        -- user's shell tab: no marker, agentless
-          { tab_id = 'w6:t8', label = 'herd:claude_2' }, -- dead herd tab: marker, agentless
-          { tab_id = 'w6:t9', label = 'herd:claude' },   -- live herd tab: marker, has agent
+          { tab_id = 'w6:t1', label = 'dotfiles' },          -- nvim's own tab: no colon, agentless
+          { tab_id = 'w6:t2', label = 'server' },            -- user's shell tab: agentless
+          { tab_id = 'w6:t5', label = 'herd.nvim:claude' },  -- a SIBLING project's dead agent: agentless
+          { tab_id = 'w6:t8', label = 'dotfiles:claude_2' }, -- this project's dead agent: agentless
+          { tab_id = 'w6:t9', label = 'dotfiles:claude' },   -- this project's live agent: has agent
         } }
       end
       return {}
@@ -297,10 +298,23 @@ describe('herd.herdr', function()
         closed[#closed + 1] = args[3]
       end
     end
-    Herdr.prune_workspace('w6', nil, 'herd:')
-    -- ONLY the dead herd-marked tab is closed; nvim's tab, the user's tab, and
-    -- the live herd tab all survive.
+    Herdr.prune_workspace('w6', nil, 'dotfiles:')
+    -- ONLY this project's dead agent tab is closed; nvim's own tab, the user's
+    -- shell tab, the sibling project's dead agent, and the live agent all survive.
     assert.are.same({ 'w6:t8' }, closed)
     Herdr.api, Herdr.run = saved_api, saved_run
+  end)
+
+  it('tab_label returns a tab\'s label, or nil when absent', function()
+    local saved = Herdr.api
+    Herdr.api = function(args)
+      if args[1] == 'tab' and args[2] == 'get' and args[3] == 'w6:t1' then
+        return { tab = { tab_id = 'w6:t1', label = 'dotfiles' } }
+      end
+      return {} -- unknown tab: no `.tab`
+    end
+    assert.are.equal('dotfiles', Herdr.tab_label('w6:t1'))
+    assert.is_nil(Herdr.tab_label('w6:tX'))
+    Herdr.api = saved
   end)
 end)

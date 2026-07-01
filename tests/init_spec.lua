@@ -64,11 +64,16 @@ describe('herd init', function()
     Herd.setup({ mode = 'native', tools = { claude = { cmd = { 'claude' } } } })
 
     local Herdr = require('herd.herdr')
-    local saved_server, saved_next, saved_spawn_native, saved_prune, saved_focus =
-      Herdr.server_running, Herdr.next_name, Herdr.spawn_native, Herdr.prune_workspace, Herdr.focus_tab
+    local saved_server, saved_next, saved_spawn_native, saved_prune, saved_focus, saved_label =
+      Herdr.server_running, Herdr.next_name, Herdr.spawn_native, Herdr.prune_workspace, Herdr.focus_tab, Herdr.tab_label
     Herdr.server_running = function() return true end
     Herdr.next_name = function(tool) return tool end
-    Herdr.spawn_native = function(name) return { name = name, tab_id = 'w6:t9' } end
+    Herdr.tab_label = function(id) return id == 'w6:t1' and 'dotfiles' or nil end
+    local spawn_project
+    Herdr.spawn_native = function(name, _cwd, _def, project)
+      spawn_project = project
+      return { name = name, tab_id = 'w6:t9' }
+    end
     local pruned
     Herdr.prune_workspace = function(ws, keep, prefix) pruned = { ws, keep, prefix } end
     local focused
@@ -80,11 +85,13 @@ describe('herd init', function()
     vim.wait(200, function() return focused ~= nil end, 5) -- show() defers via vim.schedule
 
     vim.notify = saved_notify
-    Herdr.server_running, Herdr.next_name, Herdr.spawn_native, Herdr.prune_workspace, Herdr.focus_tab =
-      saved_server, saved_next, saved_spawn_native, saved_prune, saved_focus
+    Herdr.server_running, Herdr.next_name, Herdr.spawn_native, Herdr.prune_workspace, Herdr.focus_tab, Herdr.tab_label =
+      saved_server, saved_next, saved_spawn_native, saved_prune, saved_focus, saved_label
     vim.env.HERDR_TAB_ID, vim.env.HERDR_WORKSPACE_ID = saved_tab_env, saved_ws_env
 
-    assert.are.same({ 'w6', 'w6:t9', 'herd:' }, pruned)
+    -- agent tab named after nvim's own tab label; reaper scoped to "<project>:"
+    assert.are.equal('dotfiles', spawn_project)
+    assert.are.same({ 'w6', 'w6:t9', 'dotfiles:' }, pruned)
     assert.are.equal('w6:t9', focused)
   end)
 

@@ -60,11 +60,17 @@ function M.spawn(tool)
   end
   local agent, prune_ws, prune_prefix
   if Config.get().mode == 'native' then
-    agent = Herdr.spawn_native(Herdr.next_name(tool), vim.fn.getcwd(), def)
+    -- name the agent tab after the project nvim sits in (nvim's own tab label,
+    -- e.g. "dotfiles"; falling back to the cwd folder) → "dotfiles:claude_2".
+    local project = Herdr.tab_label(vim.env.HERDR_TAB_ID)
+      or vim.fn.fnamemodify(vim.fn.getcwd(), ':t')
+    agent = Herdr.spawn_native(Herdr.next_name(tool), vim.fn.getcwd(), def, project)
     prune_ws = vim.env.HERDR_WORKSPACE_ID
-    -- native reaps only herd-created tabs (the workspace also holds nvim's own
-    -- tab and the user's tabs); float's dedicated workspace reaps all agentless.
-    prune_prefix = Herdr.NATIVE_TAB_MARKER
+    -- reap only *this* project's dead agent tabs (the shared workspace also
+    -- holds nvim's own tab and sibling projects' tabs); float's dedicated
+    -- workspace reaps all agentless. nvim's own tab is "<project>" (no colon),
+    -- so the "<project>:" prefix never matches it.
+    prune_prefix = project .. ':'
   else
     local ws = Herdr.ensure_workspace(Config.get().workspace)
     -- Tag the agent's tab with the originating project so the herdr sidebar reads

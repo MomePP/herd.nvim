@@ -3,12 +3,6 @@
 --- interactive `herdr` client is attached to.
 local M = {}
 
---- Label prefix on every native-mode agent tab, so the reaper can tell
---- herd-created tabs apart from nvim's own tab / the user's other tabs when
---- they share a workspace. Persisted in the herdr tab label, so it survives
---- nvim restarts (unlike session-local tab-id tracking).
-M.NATIVE_TAB_MARKER = 'herd:'
-
 --- Run a herdr CLI command. Returns stdout, or nil on failure.
 ---@param args string[]
 ---@param opts? { quiet?: boolean }
@@ -120,11 +114,12 @@ end
 --- an agent just spawned, which may not be in `agent list` yet).
 ---
 --- `label_prefix` guards native mode, where `ws_id` is nvim's *own* project
---- workspace (shared with nvim's host tab and the user's other tabs, none of
---- which host an agent): when set, only agentless tabs whose label starts with
---- the prefix (herd-created native tabs, see `M.NATIVE_TAB_MARKER`) are reaped.
---- When nil (float mode's dedicated workspace holds only herd agent tabs) every
---- agentless tab is reaped, unchanged.
+--- workspace (shared with nvim's host tab and sibling projects' tabs, none of
+--- which host an agent): when set (the `<project>:` prefix, see `spawn_native`),
+--- only agentless tabs whose label starts with it — this project's own dead
+--- agent tabs — are reaped. nvim's own tab is labelled just `<project>` (no
+--- trailing colon), so it is never matched. When nil (float mode's dedicated
+--- workspace holds only herd agent tabs) every agentless tab is reaped, unchanged.
 ---@param ws_id string
 ---@param keep_tab? string tab id to always keep
 ---@param label_prefix? string only reap agentless tabs whose label starts here
@@ -205,21 +200,35 @@ function M.spawn(name, cwd, def, workspace, tab_label)
   return agent
 end
 
+--- Label of a tab (e.g. nvim's own tab, via `$HERDR_TAB_ID`), or nil. Used to
+--- name native agent tabs after the project nvim sits in (`<label>:<agent>`).
+---@param tab_id string
+---@return string?
+function M.tab_label(tab_id)
+  local res = M.api({ 'tab', 'get', tab_id }, { quiet = true })
+  return res and res.tab and res.tab.label
+end
+
 --- Spawn an agent as a sibling herdr tab in nvim's own workspace (native
 --- mode) instead of a dedicated hidden workspace: `tab create` (no explicit
 --- `--workspace`; caller's `$HERDR_WORKSPACE_ID`, so the tab lands in the
 --- real project workspace nvim's own pane already lives in) → `agent start
 --- --tab` → close the spare pane the tab was created with, using the pane id
 --- `tab create` already returned (no `pane list` round trip needed).
+---
+--- The tab is labelled `<project>:<name>` (e.g. `dotfiles:claude_2`) so the
+--- herdr sidebar shows which project's agent it is when several projects share
+--- a workspace, and so `prune_workspace` can reap only *this* project's dead
+--- agent tabs via the `<project>:` label prefix (nvim's own tab is labelled
+--- just `<project>`, no trailing colon, so it is never reaped).
 ---@param name string unique agent name
 ---@param cwd string
 ---@param def herd.Tool
+---@param project string label of nvim's own tab (or cwd basename); tab prefix
 ---@return herd.Agent?
-function M.spawn_native(name, cwd, def)
+function M.spawn_native(name, cwd, def, project)
   local ws = vim.env.HERDR_WORKSPACE_ID
-  -- Prefix the label so prune_workspace can identify this as a herd-created
-  -- tab (the workspace is shared with nvim's own tab and the user's tabs).
-  local label = M.NATIVE_TAB_MARKER .. name
+  local label = project .. ':' .. name
   local created = M.api({ 'tab', 'create', '--workspace', ws, '--cwd', cwd, '--label', label, '--no-focus' })
   local tab = created and created.tab and created.tab.tab_id
   if not tab then
