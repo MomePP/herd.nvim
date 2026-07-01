@@ -14,6 +14,15 @@ describe('herd.herdr', function()
     Herdr.run = saved
   end)
 
+  it('focus_tab runs the tab focus command', function()
+    local got
+    local saved = Herdr.run
+    Herdr.run = function(args) got = args end
+    Herdr.focus_tab('wH:t2')
+    assert.are.same({ 'tab', 'focus', 'wH:t2' }, got)
+    Herdr.run = saved
+  end)
+
   it('slot_name: 1 is the base, n>1 is suffixed', function()
     assert.are.equal('claude', Herdr.slot_name('claude', 1))
     assert.are.equal('claude_2', Herdr.slot_name('claude', 2))
@@ -33,15 +42,16 @@ describe('herd.herdr', function()
     local saved = Herdr.api
     Herdr.api = function()
       return { agents = {
-        { name = 'a', pane_id = 'p1', agent_status = 'idle', cwd = '/tmp/x' },
-        { name = 'b', pane_id = 'p2', agent_status = 'working', cwd = '/tmp/y' },
+        { name = 'a', pane_id = 'p1', tab_id = 't1', agent_status = 'idle', cwd = '/tmp/x' },
+        { name = 'b', pane_id = 'p2', tab_id = 't2', agent_status = 'working', cwd = '/tmp/y' },
         -- detected agent with no assigned name → must be skipped
-        { pane_id = 'p3', agent_status = 'working', cwd = '/tmp/x' },
+        { pane_id = 'p3', tab_id = 't3', agent_status = 'working', cwd = '/tmp/x' },
       } }
     end
     local all = Herdr.agents()
     assert.are.equal(2, #all)
     assert.are.equal('idle', all[1].status)
+    assert.are.equal('t1', all[1].tab_id)
     local scoped = Herdr.agents(vim.fs.normalize('/tmp/x'))
     assert.are.equal(1, #scoped) -- only the named 'a', not the nameless p3
     assert.are.equal('a', scoped[1].name)

@@ -44,6 +44,7 @@ end
 ---@class herd.Agent
 ---@field name string
 ---@field pane_id string
+---@field tab_id string
 ---@field status string
 ---@field cwd string
 
@@ -58,7 +59,8 @@ function M.agents(cwd)
     -- process it spotted in some pane). herd targets by name, so skip the
     -- nameless ones — they break next_name / picker labels and aren't reachable.
     if a.name and (not cwd or vim.fs.normalize(a.cwd or '') == cwd) then
-      ret[#ret + 1] = { name = a.name, pane_id = a.pane_id, status = a.agent_status, cwd = a.cwd }
+      ret[#ret + 1] =
+        { name = a.name, pane_id = a.pane_id, tab_id = a.tab_id, status = a.agent_status, cwd = a.cwd }
     end
   end
   return ret
@@ -201,6 +203,13 @@ end
 ---@param id string workspace id
 function M.focus_workspace(id)
   M.run({ 'workspace', 'focus', id }, { quiet = true })
+end
+
+--- Focus a specific tab — used by native mode to switch herdr's visible tab
+--- between nvim's own tab and an agent's tab, in place, in the same window.
+---@param tab_id string
+function M.focus_tab(tab_id)
+  M.run({ 'tab', 'focus', tab_id }, { quiet = true })
 end
 
 --- Send literal text to an agent (no Enter — review then submit).
