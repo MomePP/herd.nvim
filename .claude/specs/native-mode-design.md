@@ -203,12 +203,12 @@ live session and confirm it lands back on nvim's tab.
 
 **Documentation task**: the native-mode README section should document
 `last_pane` (`Ctrl-a ;`) as the recommended return gesture, with
-`previous_tab`/`next_tab` (`prefix+ctrl+h`/`prefix+ctrl+l`, already bound in
-the reference config) as the fallback if `last_pane` turns out not to pick up
-API-driven focus changes. `next_agent`/`previous_agent`
-(`prefix+down`/`prefix+up`) are also worth a mention as a complementary way
-to reach a specific agent directly via herdr's own agents sidebar,
-independent of the round trip.
+`previous_tab`/`next_tab` (bound to both `prefix+ctrl+h`/`prefix+ctrl+l` and
+`prefix+left`/`prefix+right` in the reference config) as the fallback if
+`last_pane` turns out not to pick up API-driven focus changes.
+`next_agent`/`previous_agent` (`prefix+down`/`prefix+up`) are also worth a
+mention as a complementary way to reach a specific agent directly via
+herdr's own agents sidebar, independent of the round trip.
 
 ### Cleanup
 
