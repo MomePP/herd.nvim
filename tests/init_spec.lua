@@ -115,4 +115,31 @@ describe('herd init', function()
     assert.are.equal('w6:t9', focused)
     assert.is_false(toggled)
   end)
+
+  it('native mode skips the float-only TermOpen and mouse-passthrough autocmds', function()
+    pcall(vim.api.nvim_del_augroup_by_name, 'herd_term')
+    pcall(vim.api.nvim_del_augroup_by_name, 'herd_mouse')
+    local saved_env = vim.env.HERDR_TAB_ID
+    vim.env.HERDR_TAB_ID = 'w6:t1'
+
+    Herd.setup({ mode = 'native', keys = { hide = '<leader>s', newline = '<S-CR>' }, win = { mouse = false } })
+
+    vim.env.HERDR_TAB_ID = saved_env
+    assert.has_error(function()
+      vim.api.nvim_get_autocmds({ group = 'herd_term' })
+    end)
+    assert.has_error(function()
+      vim.api.nvim_get_autocmds({ group = 'herd_mouse' })
+    end)
+  end)
+
+  it('float mode still registers the TermOpen and mouse-passthrough autocmds', function()
+    pcall(vim.api.nvim_del_augroup_by_name, 'herd_term')
+    pcall(vim.api.nvim_del_augroup_by_name, 'herd_mouse')
+
+    Herd.setup({ mode = 'float', keys = { hide = '<leader>s', newline = '<S-CR>' }, win = { mouse = false } })
+
+    assert.is_true(#vim.api.nvim_get_autocmds({ group = 'herd_term' }) > 0)
+    assert.is_true(#vim.api.nvim_get_autocmds({ group = 'herd_mouse' }) > 0)
+  end)
 end)

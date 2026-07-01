@@ -197,8 +197,9 @@ function M.setup(opts)
   if cfg.keys.dashboard then
     map('n', cfg.keys.dashboard, M.dashboard, { desc = 'herd: herdr dashboard' })
   end
-  -- terminal-mode hide/newline are registered per-float by an autocmd so they are buffer-local.
-  if cfg.keys.hide or cfg.keys.newline then
+  -- terminal-mode hide/newline are registered per-float by an autocmd so they are
+  -- buffer-local. Float-only: native mode has no herd-owned nvim terminal buffer.
+  if cfg.mode == 'float' and (cfg.keys.hide or cfg.keys.newline) then
     vim.api.nvim_create_autocmd('TermOpen', {
       group = vim.api.nvim_create_augroup('herd_term', { clear = true }),
       callback = function(ev)
@@ -226,8 +227,9 @@ function M.setup(opts)
 
   -- win.mouse = false: hand the mouse to the terminal (Ghostty) while an agent
   -- float is focused, so a plain click-drag does native terminal selection instead
-  -- of being forwarded to the agent. Restored on leaving the float.
-  if cfg.win.mouse == false then
+  -- of being forwarded to the agent. Restored on leaving the float. Float-only:
+  -- native mode has no herd-owned nvim terminal buffer to hand the mouse away from.
+  if cfg.mode == 'float' and cfg.win.mouse == false then
     local grp = vim.api.nvim_create_augroup('herd_mouse', { clear = true })
     local saved
     vim.api.nvim_create_autocmd('BufEnter', {
