@@ -39,6 +39,13 @@ Options ~                                                       *herd-config*
     tools   table<string, { cmd: string[], env?: table }>   (default: {})
             Spawnable agents. The key is the tool name; `cmd` is the argv.
 
+    mode    'float'|'native'                                (default: "float")
+            'float' hosts each agent in an nvim floating terminal (unchanged
+            default behavior). 'native' shows it as a sibling herdr tab in
+            nvim's own workspace instead, with no nvim window at all —
+            requires nvim to run inside a herdr pane; see |herd-native-mode|.
+            `win.*` and `keys.hide`/`keys.newline` apply to 'float' only.
+
     keys    { toggle, send, hide, select, dashboard, newline }
             Set any to false to disable. Defaults:
               toggle    = "<leader>s"       (normal)   toggle agent float; count = slot
@@ -113,6 +120,23 @@ reattach:
 
 Agents are rediscovered via `herdr agent list`; as long as the herdr server
 is running, sessions persist across nvim restarts.
+
+==============================================================================
+NATIVE MODE                                               *herd-native-mode*
+
+`mode = 'native'` spawns an agent as a sibling herdr tab in nvim's own
+workspace and focuses it via the herdr CLI, instead of an nvim floating
+terminal. There is no nvim window (float or tab) for the agent — scrolling,
+clicking, and drag-select are native Ghostty-over-herdr behavior.
+
+Requires nvim to run inside a herdr pane (`$HERDR_TAB_ID` must be set);
+otherwise `setup()` warns and falls back to "float" for the session.
+
+Going to an agent is an nvim action (same keys as float mode). Coming back is
+not — nvim isn't focused while herdr shows another tab, so it's ordinary
+herdr tab/pane navigation instead: `last_pane` (if bound), `previous_tab` /
+`next_tab`, or `next_agent` / `previous_agent`. Configure these in
+`~/.config/herdr/config.toml`'s `[keys]` section, not in herd.nvim.
 
 ==============================================================================
 COMMANDS                                                      *herd-commands*
