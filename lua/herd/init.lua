@@ -30,16 +30,21 @@ local function ensure_server()
   return false
 end
 
---- Show an agent float and remember it as the target.
+--- Show an agent (float in 'float' mode, herdr tab focus in 'native' mode)
+--- and remember it as the target.
 ---@param a herd.Agent
 local function show(a)
   M.target = a.name
-  -- Defer the float open: when show() runs inside a vim.ui.select callback (the
-  -- picker), opening the float + attach synchronously races the picker teardown
-  -- and the attach process gets killed (float blinks shut). A scheduled open runs
-  -- after the callback returns and is reliable from every caller.
+  -- Defer: when show() runs inside a vim.ui.select callback (the picker),
+  -- acting synchronously races the picker teardown (float mode: the attach
+  -- process gets killed, float blinks shut). A scheduled action runs after
+  -- the callback returns and is reliable from every caller, in both modes.
   vim.schedule(function()
-    Terminal.open(a.name, { cwd = a.cwd, pane = a.pane_id })
+    if Config.get().mode == 'native' then
+      Herdr.focus_tab(a.tab_id)
+    else
+      Terminal.open(a.name, { cwd = a.cwd, pane = a.pane_id })
+    end
   end)
 end
 
@@ -53,18 +58,28 @@ function M.spawn(tool)
   if not def then
     return vim.notify('herd: unknown tool ' .. tostring(tool), vim.log.levels.ERROR)
   end
-  local ws = Herdr.ensure_workspace(Config.get().workspace)
-  -- Tag the agent's tab with the originating project so the herdr sidebar reads
-  -- "<herd> · <project>" instead of a bare "herd". Prefer the focused workspace's
-  -- label (nvim's project), falling back to the cwd folder name.
-  local project = Herdr.focused_workspace_label(Config.get().workspace)
-    or vim.fn.fnamemodify(vim.fn.getcwd(), ':t')
-  local agent = Herdr.spawn(Herdr.next_name(tool), vim.fn.getcwd(), def, ws, project)
+  local agent, prune_ws, prune_prefix
+  if Config.get().mode == 'native' then
+    agent = Herdr.spawn_native(Herdr.next_name(tool), vim.fn.getcwd(), def)
+    prune_ws = vim.env.HERDR_WORKSPACE_ID
+    -- native reaps only herd-created tabs (the workspace also holds nvim's own
+    -- tab and the user's tabs); float's dedicated workspace reaps all agentless.
+    prune_prefix = Herdr.NATIVE_TAB_MARKER
+  else
+    local ws = Herdr.ensure_workspace(Config.get().workspace)
+    -- Tag the agent's tab with the originating project so the herdr sidebar reads
+    -- "<herd> · <project>" instead of a bare "herd". Prefer the focused workspace's
+    -- label (nvim's project), falling back to the cwd folder name.
+    local project = Herdr.focused_workspace_label(Config.get().workspace)
+      or vim.fn.fnamemodify(vim.fn.getcwd(), ':t')
+    agent = Herdr.spawn(Herdr.next_name(tool), vim.fn.getcwd(), def, ws, project)
+    prune_ws = ws
+  end
   if not agent then
     return -- error already surfaced by Herdr.run
   end
-  if ws then
-    Herdr.prune_workspace(ws, agent.tab_id) -- reap tabs left by killed agents
+  if prune_ws then
+    Herdr.prune_workspace(prune_ws, agent.tab_id, prune_prefix) -- reap tabs left by killed agents
   end
   show(agent)
   vim.notify('herd: spawned ' .. agent.name)
@@ -97,7 +112,11 @@ function M.toggle()
     return M.select()
   end
   M.target = a.name
-  Terminal.toggle(a.name, { cwd = a.cwd, pane = a.pane_id })
+  if Config.get().mode == 'native' then
+    Herdr.focus_tab(a.tab_id)
+  else
+    Terminal.toggle(a.name, { cwd = a.cwd, pane = a.pane_id })
+  end
 end
 
 --- Grouped picker: switch to a running agent, or spawn a configured tool.
@@ -141,11 +160,8 @@ function M.send()
   if not a then
     return vim.notify('herd: no agents running in this project', vim.log.levels.WARN)
   end
-  M.target = a.name
   Herdr.agent_send(a.pane_id, text) -- target the unambiguous pane, not the name
-  vim.schedule(function()
-    Terminal.open(a.name, { cwd = a.cwd, pane = a.pane_id }) -- land in the agent to submit
-  end)
+  show(a) -- land in the agent to submit
   vim.notify('herd → ' .. a.name)
 end
 
@@ -164,6 +180,13 @@ end
 ---@param opts? herd.Config
 function M.setup(opts)
   local cfg = Config.setup(opts)
+  if cfg.mode == 'native' and not vim.env.HERDR_TAB_ID then
+    vim.notify(
+      'herd: native mode requires nvim to run inside a herdr pane — falling back to float',
+      vim.log.levels.WARN
+    )
+    cfg.mode = 'float'
+  end
   local map = vim.keymap.set
   if cfg.keys.toggle then
     map('n', cfg.keys.toggle, M.toggle, { desc = 'herd: toggle agent float (count = slot)' })
@@ -177,8 +200,9 @@ function M.setup(opts)
   if cfg.keys.dashboard then
     map('n', cfg.keys.dashboard, M.dashboard, { desc = 'herd: herdr dashboard' })
   end
-  -- terminal-mode hide/newline are registered per-float by an autocmd so they are buffer-local.
-  if cfg.keys.hide or cfg.keys.newline then
+  -- terminal-mode hide/newline are registered per-float by an autocmd so they are
+  -- buffer-local. Float-only: native mode has no herd-owned nvim terminal buffer.
+  if cfg.mode == 'float' and (cfg.keys.hide or cfg.keys.newline) then
     vim.api.nvim_create_autocmd('TermOpen', {
       group = vim.api.nvim_create_augroup('herd_term', { clear = true }),
       callback = function(ev)
@@ -206,8 +230,9 @@ function M.setup(opts)
 
   -- win.mouse = false: hand the mouse to the terminal (Ghostty) while an agent
   -- float is focused, so a plain click-drag does native terminal selection instead
-  -- of being forwarded to the agent. Restored on leaving the float.
-  if cfg.win.mouse == false then
+  -- of being forwarded to the agent. Restored on leaving the float. Float-only:
+  -- native mode has no herd-owned nvim terminal buffer to hand the mouse away from.
+  if cfg.mode == 'float' and cfg.win.mouse == false then
     local grp = vim.api.nvim_create_augroup('herd_mouse', { clear = true })
     local saved
     vim.api.nvim_create_autocmd('BufEnter', {

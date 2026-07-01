@@ -14,6 +14,15 @@ describe('herd.herdr', function()
     Herdr.run = saved
   end)
 
+  it('focus_tab runs the tab focus command', function()
+    local got
+    local saved = Herdr.run
+    Herdr.run = function(args) got = args end
+    Herdr.focus_tab('wH:t2')
+    assert.are.same({ 'tab', 'focus', 'wH:t2' }, got)
+    Herdr.run = saved
+  end)
+
   it('slot_name: 1 is the base, n>1 is suffixed', function()
     assert.are.equal('claude', Herdr.slot_name('claude', 1))
     assert.are.equal('claude_2', Herdr.slot_name('claude', 2))
@@ -33,15 +42,16 @@ describe('herd.herdr', function()
     local saved = Herdr.api
     Herdr.api = function()
       return { agents = {
-        { name = 'a', pane_id = 'p1', agent_status = 'idle', cwd = '/tmp/x' },
-        { name = 'b', pane_id = 'p2', agent_status = 'working', cwd = '/tmp/y' },
+        { name = 'a', pane_id = 'p1', tab_id = 't1', agent_status = 'idle', cwd = '/tmp/x' },
+        { name = 'b', pane_id = 'p2', tab_id = 't2', agent_status = 'working', cwd = '/tmp/y' },
         -- detected agent with no assigned name → must be skipped
-        { pane_id = 'p3', agent_status = 'working', cwd = '/tmp/x' },
+        { pane_id = 'p3', tab_id = 't3', agent_status = 'working', cwd = '/tmp/x' },
       } }
     end
     local all = Herdr.agents()
     assert.are.equal(2, #all)
     assert.are.equal('idle', all[1].status)
+    assert.are.equal('t1', all[1].tab_id)
     local scoped = Herdr.agents(vim.fs.normalize('/tmp/x'))
     assert.are.equal(1, #scoped) -- only the named 'a', not the nameless p3
     assert.are.equal('a', scoped[1].name)
@@ -155,6 +165,69 @@ describe('herd.herdr', function()
     Herdr.api = saved
   end)
 
+  it('spawn_native creates a tab in the env workspace, starts the agent, and closes the spare pane via the tab-create response (no pane list)', function()
+    local saved_ws = vim.env.HERDR_WORKSPACE_ID
+    vim.env.HERDR_WORKSPACE_ID = 'w6'
+    local calls = {}
+    local saved_api = Herdr.api
+    Herdr.api = function(args)
+      calls[#calls + 1] = args
+      if args[1] == 'tab' and args[2] == 'create' then
+        return { tab = { tab_id = 'w6:t9' }, root_pane = { pane_id = 'w6:pS' } }
+      end
+      if args[1] == 'agent' and args[2] == 'start' then
+        return { agent = { name = 'claude', pane_id = 'w6:pQ' } }
+      end
+      return {}
+    end
+
+    local agent = Herdr.spawn_native('claude', '/tmp/proj', { cmd = { 'claude' } })
+
+    local tabcmd = table.concat(calls[1], ' ')
+    assert.are.equal('tab', calls[1][1])
+    assert.are.equal('create', calls[1][2])
+    assert.is_truthy(tabcmd:find('--workspace w6', 1, true))
+    assert.is_truthy(tabcmd:find('--label herd:claude', 1, true))
+    assert.is_truthy(tabcmd:find('--cwd /tmp/proj', 1, true))
+    assert.is_truthy(tabcmd:find('--no-focus', 1, true))
+
+    local startcmd = table.concat(calls[2], ' ')
+    assert.is_truthy(startcmd:find('agent start claude', 1, true))
+    assert.is_truthy(startcmd:find('--tab w6:t9', 1, true))
+    assert.is_nil(startcmd:find('--workspace'))
+    assert.is_nil(startcmd:find('--split'))
+
+    -- the spare pane id came straight from the tab-create response — no
+    -- follow-up `pane list` round trip, unlike float mode's M.spawn.
+    assert.are.same({ 'pane', 'close', 'w6:pS' }, calls[3])
+    assert.are.equal(3, #calls)
+
+    assert.are.equal('claude', agent.name)
+    assert.are.equal('w6:t9', agent.tab_id)
+
+    Herdr.api = saved_api
+    vim.env.HERDR_WORKSPACE_ID = saved_ws
+  end)
+
+  it('spawn_native returns nil and never starts the agent when tab creation fails', function()
+    local saved_ws = vim.env.HERDR_WORKSPACE_ID
+    vim.env.HERDR_WORKSPACE_ID = 'w6'
+    local calls = {}
+    local saved_api = Herdr.api
+    Herdr.api = function(args)
+      calls[#calls + 1] = args
+      return {} -- 'tab create' fails: no `.tab` in the response
+    end
+
+    local agent = Herdr.spawn_native('claude', '/tmp/proj', { cmd = { 'claude' } })
+
+    assert.is_nil(agent)
+    assert.are.equal(1, #calls) -- only the failed tab-create call, no agent start
+
+    Herdr.api = saved_api
+    vim.env.HERDR_WORKSPACE_ID = saved_ws
+  end)
+
   it('focused_workspace_label returns the focused workspace, excluding the herd label', function()
     local saved = Herdr.api
     Herdr.api = function(args)
@@ -198,6 +271,36 @@ describe('herd.herdr', function()
     end
     Herdr.prune_workspace('wH', 'wH:t3') -- keep t3 (just-spawned, maybe not in list yet)
     assert.are.same({ 'wH:t2' }, closed) -- t1 live, t3 kept, only dead t2 closed
+    Herdr.api, Herdr.run = saved_api, saved_run
+  end)
+
+  it('prune_workspace with a label_prefix reaps only herd-marked agentless tabs (native mode)', function()
+    local closed = {}
+    local saved_api, saved_run = Herdr.api, Herdr.run
+    Herdr.api = function(args)
+      if args[1] == 'agent' and args[2] == 'list' then
+        -- t9 hosts a live herd agent; nothing else does
+        return { agents = { { name = 'claude', tab_id = 'w6:t9' } } }
+      end
+      if args[1] == 'tab' and args[2] == 'list' then
+        return { tabs = {
+          { tab_id = 'w6:t1', label = 'nvim' },          -- nvim's own tab: no marker, agentless
+          { tab_id = 'w6:t2', label = 'server' },        -- user's shell tab: no marker, agentless
+          { tab_id = 'w6:t8', label = 'herd:claude_2' }, -- dead herd tab: marker, agentless
+          { tab_id = 'w6:t9', label = 'herd:claude' },   -- live herd tab: marker, has agent
+        } }
+      end
+      return {}
+    end
+    Herdr.run = function(args)
+      if args[1] == 'tab' and args[2] == 'close' then
+        closed[#closed + 1] = args[3]
+      end
+    end
+    Herdr.prune_workspace('w6', nil, 'herd:')
+    -- ONLY the dead herd-marked tab is closed; nvim's tab, the user's tab, and
+    -- the live herd tab all survive.
+    assert.are.same({ 'w6:t8' }, closed)
     Herdr.api, Herdr.run = saved_api, saved_run
   end)
 end)

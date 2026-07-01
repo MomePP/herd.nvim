@@ -1,18 +1,19 @@
 # 🐑 herd.nvim
 
-> Drive [herdr](https://herdr.dev) coding agents from Neovim — **nvim is the host, herdr is the backend daemon**.
+> Drive [herdr](https://herdr.dev) coding agents from Neovim — **nvim is the host, herdr is the backend daemon** (default float mode).
 
 `herd.nvim` is a Neovim plugin that makes nvim the top-level UI for your
 [herdr](https://herdr.dev) coding agents. herdr runs as a background daemon
 that **owns each agent's PTY** — so herdr's status hooks and grouped agent
-dashboard keep working — while agents are shown inside **nvim floating
-terminals** via `herdr agent attach`. All navigation uses standard nvim
-keybinds; there is no multiplexer round-trip.
+dashboard keep working — while, in the default `mode = 'float'`, agents are
+shown inside **nvim floating terminals** via `herdr agent attach`. All
+navigation uses standard nvim keybinds; there is no multiplexer round-trip.
+(`mode = 'native'` is the exception — see "Native mode" below.)
 
 > Inspired by [`folke/sidekick.nvim`](https://github.com/folke/sidekick.nvim). Where
 > sidekick makes nvim the host with tmux/zellij as the backend, herd uses the same
-> nvim-as-host model with **herdr** as the backend — gaining herdr's status hooks
-> and grouped agent dashboard.
+> nvim-as-host model (in float mode) with **herdr** as the backend — gaining herdr's
+> status hooks and grouped agent dashboard.
 
 ## ✨ Features
 
@@ -62,6 +63,9 @@ Defaults:
 require('herd').setup({
   -- Spawnable agents. Key = tool name, `cmd` = argv, `env` = extra environment.
   tools = {},
+
+  mode = 'float',  -- 'native' shows agents as herdr tabs instead of nvim floats
+                    -- (requires nvim to run inside a herdr pane). See "Native mode" below.
 
   workspace = 'herd.nvim',  -- herdr workspace label that hosts spawned agents (kept off your project tabs)
 
@@ -133,6 +137,37 @@ The float can be styled as a fullscreen-transparent overlay by setting
 `win.winhighlight` to map float highlight groups to your terminal background groups
 (e.g. `'Normal:MyTermBg,FloatBorder:MyTermBg'`). This mirrors the look of
 sidekick.nvim when `winblend` is non-zero or terminal colors are remapped.
+
+## 🧭 Native mode
+
+`mode = 'native'` swaps the display backend: instead of showing an agent in
+an nvim floating terminal, herd.nvim spawns it as a **sibling herdr tab in
+nvim's own workspace** and drives focus through the herdr CLI. There is no
+nvim window (float or tab) for the agent at all — scrolling, clicking, and
+drag-select are native Ghostty-over-herdr behavior, with none of the
+`win.mouse` trade-off float mode has.
+
+**Requires nvim to run inside a herdr pane** (native mode reads
+`$HERDR_TAB_ID`/`$HERDR_WORKSPACE_ID` from the environment herdr sets on any
+pane it spawns). Without it, `setup()` warns and falls back to float mode for
+the session.
+
+`win.*` and `keys.hide`/`keys.newline` only apply to `mode = 'float'` —
+native mode has no herd-owned nvim terminal buffer for them to affect.
+
+Going *to* an agent is an nvim action (`<leader>s`/`<leader>S`, same keys as
+float mode); coming *back* is not — nvim isn't focused/receiving input while
+herdr shows another tab, so the return trip is ordinary herdr tab/pane
+navigation instead:
+
+- `last_pane` (tmux-style last-pane toggle) if your herdr config binds it —
+  jumps back to whichever pane you were on before.
+- `previous_tab`/`next_tab` as a fallback, cycling tabs within the workspace.
+- `next_agent`/`previous_agent` to jump directly to a specific agent via
+  herdr's own agents sidebar, independent of the round trip.
+
+Bind these in `~/.config/herdr/config.toml`'s `[keys]` section — they're
+herdr-native navigation, not something herd.nvim can configure.
 
 ## ❓ FAQ
 

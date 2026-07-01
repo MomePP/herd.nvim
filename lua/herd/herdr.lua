@@ -3,6 +3,12 @@
 --- interactive `herdr` client is attached to.
 local M = {}
 
+--- Label prefix on every native-mode agent tab, so the reaper can tell
+--- herd-created tabs apart from nvim's own tab / the user's other tabs when
+--- they share a workspace. Persisted in the herdr tab label, so it survives
+--- nvim restarts (unlike session-local tab-id tracking).
+M.NATIVE_TAB_MARKER = 'herd:'
+
 --- Run a herdr CLI command. Returns stdout, or nil on failure.
 ---@param args string[]
 ---@param opts? { quiet?: boolean }
@@ -44,6 +50,7 @@ end
 ---@class herd.Agent
 ---@field name string
 ---@field pane_id string
+---@field tab_id string
 ---@field status string
 ---@field cwd string
 
@@ -58,7 +65,8 @@ function M.agents(cwd)
     -- process it spotted in some pane). herd targets by name, so skip the
     -- nameless ones — they break next_name / picker labels and aren't reachable.
     if a.name and (not cwd or vim.fs.normalize(a.cwd or '') == cwd) then
-      ret[#ret + 1] = { name = a.name, pane_id = a.pane_id, status = a.agent_status, cwd = a.cwd }
+      ret[#ret + 1] =
+        { name = a.name, pane_id = a.pane_id, tab_id = a.tab_id, status = a.agent_status, cwd = a.cwd }
     end
   end
   return ret
@@ -110,9 +118,17 @@ end
 --- pane but leaves the (now agentless) tab behind. Close every tab in the
 --- workspace that no live agent occupies. `keep_tab` is never closed (the tab of
 --- an agent just spawned, which may not be in `agent list` yet).
+---
+--- `label_prefix` guards native mode, where `ws_id` is nvim's *own* project
+--- workspace (shared with nvim's host tab and the user's other tabs, none of
+--- which host an agent): when set, only agentless tabs whose label starts with
+--- the prefix (herd-created native tabs, see `M.NATIVE_TAB_MARKER`) are reaped.
+--- When nil (float mode's dedicated workspace holds only herd agent tabs) every
+--- agentless tab is reaped, unchanged.
 ---@param ws_id string
 ---@param keep_tab? string tab id to always keep
-function M.prune_workspace(ws_id, keep_tab)
+---@param label_prefix? string only reap agentless tabs whose label starts here
+function M.prune_workspace(ws_id, keep_tab, label_prefix)
   local agents = M.api({ 'agent', 'list' }, { quiet = true })
   local live = {}
   for _, a in ipairs(agents and agents.agents or {}) do
@@ -122,7 +138,8 @@ function M.prune_workspace(ws_id, keep_tab)
   end
   local tabs = M.api({ 'tab', 'list', '--workspace', ws_id }, { quiet = true })
   for _, t in ipairs(tabs and tabs.tabs or {}) do
-    if t.tab_id and t.tab_id ~= keep_tab and not live[t.tab_id] then
+    local owned = not label_prefix or (t.label ~= nil and vim.startswith(t.label, label_prefix))
+    if t.tab_id and t.tab_id ~= keep_tab and not live[t.tab_id] and owned then
       M.run({ 'tab', 'close', t.tab_id }, { quiet = true })
     end
   end
@@ -188,6 +205,44 @@ function M.spawn(name, cwd, def, workspace, tab_label)
   return agent
 end
 
+--- Spawn an agent as a sibling herdr tab in nvim's own workspace (native
+--- mode) instead of a dedicated hidden workspace: `tab create` (no explicit
+--- `--workspace`; caller's `$HERDR_WORKSPACE_ID`, so the tab lands in the
+--- real project workspace nvim's own pane already lives in) → `agent start
+--- --tab` → close the spare pane the tab was created with, using the pane id
+--- `tab create` already returned (no `pane list` round trip needed).
+---@param name string unique agent name
+---@param cwd string
+---@param def herd.Tool
+---@return herd.Agent?
+function M.spawn_native(name, cwd, def)
+  local ws = vim.env.HERDR_WORKSPACE_ID
+  -- Prefix the label so prune_workspace can identify this as a herd-created
+  -- tab (the workspace is shared with nvim's own tab and the user's tabs).
+  local label = M.NATIVE_TAB_MARKER .. name
+  local created = M.api({ 'tab', 'create', '--workspace', ws, '--cwd', cwd, '--label', label, '--no-focus' })
+  local tab = created and created.tab and created.tab.tab_id
+  if not tab then
+    return nil -- error already surfaced by Herdr.run; no safe fallback placement
+  end
+  local spare_pane = created.root_pane and created.root_pane.pane_id
+  local args = { 'agent', 'start', name, '--cwd', cwd, '--tab', tab, '--no-focus' }
+  for k, v in pairs(def.env or {}) do
+    vim.list_extend(args, { '--env', ('%s=%s'):format(k, tostring(v)) })
+  end
+  args[#args + 1] = '--'
+  vim.list_extend(args, def.cmd)
+  local started = M.api(args)
+  local agent = started and started.agent
+  if agent then
+    agent.tab_id = tab
+    if spare_pane then
+      M.api({ 'pane', 'close', spare_pane })
+    end
+  end
+  return agent
+end
+
 --- argv to attach an nvim :terminal to a running agent's PTY (clean stream).
 --- `target` should be the unambiguous pane id (a bare tool name like "claude"
 --- can be ambiguous when herdr also detects same-tool processes).
@@ -201,6 +256,13 @@ end
 ---@param id string workspace id
 function M.focus_workspace(id)
   M.run({ 'workspace', 'focus', id }, { quiet = true })
+end
+
+--- Focus a specific tab — used by native mode to switch herdr's visible tab
+--- between nvim's own tab and an agent's tab, in place, in the same window.
+---@param tab_id string
+function M.focus_tab(tab_id)
+  M.run({ 'tab', 'focus', tab_id }, { quiet = true })
 end
 
 --- Send literal text to an agent (no Enter — review then submit).
