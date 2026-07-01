@@ -25,4 +25,36 @@ describe('herd init', function()
     vim.notify = saved
     assert.is_truthy(notified and notified.msg:find('unknown tool', 1, true))
   end)
+
+  it('setup falls back to float when native mode is requested without HERDR_TAB_ID', function()
+    local saved_env = vim.env.HERDR_TAB_ID
+    vim.env.HERDR_TAB_ID = nil
+    local notified
+    local saved_notify = vim.notify
+    vim.notify = function(msg, lvl) notified = { msg = msg, lvl = lvl } end
+
+    Herd.setup({ mode = 'native' })
+
+    vim.notify = saved_notify
+    vim.env.HERDR_TAB_ID = saved_env
+    assert.is_truthy(notified)
+    assert.is_truthy(notified.msg:find('native mode requires nvim', 1, true))
+    assert.are.equal(vim.log.levels.WARN, notified.lvl)
+    assert.are.equal('float', require('herd.config').get().mode)
+  end)
+
+  it('setup keeps native mode when HERDR_TAB_ID is present', function()
+    local saved_env = vim.env.HERDR_TAB_ID
+    vim.env.HERDR_TAB_ID = 'w6:t1'
+    local notified = false
+    local saved_notify = vim.notify
+    vim.notify = function() notified = true end
+
+    Herd.setup({ mode = 'native' })
+
+    vim.notify = saved_notify
+    vim.env.HERDR_TAB_ID = saved_env
+    assert.is_false(notified)
+    assert.are.equal('native', require('herd.config').get().mode)
+  end)
 end)

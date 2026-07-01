@@ -164,6 +164,13 @@ end
 ---@param opts? herd.Config
 function M.setup(opts)
   local cfg = Config.setup(opts)
+  if cfg.mode == 'native' and not vim.env.HERDR_TAB_ID then
+    vim.notify(
+      'herd: native mode requires nvim to run inside a herdr pane — falling back to float',
+      vim.log.levels.WARN
+    )
+    cfg.mode = 'float'
+  end
   local map = vim.keymap.set
   if cfg.keys.toggle then
     map('n', cfg.keys.toggle, M.toggle, { desc = 'herd: toggle agent float (count = slot)' })
