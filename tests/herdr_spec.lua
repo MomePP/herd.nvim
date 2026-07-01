@@ -165,6 +165,69 @@ describe('herd.herdr', function()
     Herdr.api = saved
   end)
 
+  it('spawn_native creates a tab in the env workspace, starts the agent, and closes the spare pane via the tab-create response (no pane list)', function()
+    local saved_ws = vim.env.HERDR_WORKSPACE_ID
+    vim.env.HERDR_WORKSPACE_ID = 'w6'
+    local calls = {}
+    local saved_api = Herdr.api
+    Herdr.api = function(args)
+      calls[#calls + 1] = args
+      if args[1] == 'tab' and args[2] == 'create' then
+        return { tab = { tab_id = 'w6:t9' }, root_pane = { pane_id = 'w6:pS' } }
+      end
+      if args[1] == 'agent' and args[2] == 'start' then
+        return { agent = { name = 'claude', pane_id = 'w6:pQ' } }
+      end
+      return {}
+    end
+
+    local agent = Herdr.spawn_native('claude', '/tmp/proj', { cmd = { 'claude' } })
+
+    local tabcmd = table.concat(calls[1], ' ')
+    assert.are.equal('tab', calls[1][1])
+    assert.are.equal('create', calls[1][2])
+    assert.is_truthy(tabcmd:find('--workspace w6', 1, true))
+    assert.is_truthy(tabcmd:find('--label claude', 1, true))
+    assert.is_truthy(tabcmd:find('--cwd /tmp/proj', 1, true))
+    assert.is_truthy(tabcmd:find('--no-focus', 1, true))
+
+    local startcmd = table.concat(calls[2], ' ')
+    assert.is_truthy(startcmd:find('agent start claude', 1, true))
+    assert.is_truthy(startcmd:find('--tab w6:t9', 1, true))
+    assert.is_nil(startcmd:find('--workspace'))
+    assert.is_nil(startcmd:find('--split'))
+
+    -- the spare pane id came straight from the tab-create response — no
+    -- follow-up `pane list` round trip, unlike float mode's M.spawn.
+    assert.are.same({ 'pane', 'close', 'w6:pS' }, calls[3])
+    assert.are.equal(3, #calls)
+
+    assert.are.equal('claude', agent.name)
+    assert.are.equal('w6:t9', agent.tab_id)
+
+    Herdr.api = saved_api
+    vim.env.HERDR_WORKSPACE_ID = saved_ws
+  end)
+
+  it('spawn_native returns nil and never starts the agent when tab creation fails', function()
+    local saved_ws = vim.env.HERDR_WORKSPACE_ID
+    vim.env.HERDR_WORKSPACE_ID = 'w6'
+    local calls = {}
+    local saved_api = Herdr.api
+    Herdr.api = function(args)
+      calls[#calls + 1] = args
+      return {} -- 'tab create' fails: no `.tab` in the response
+    end
+
+    local agent = Herdr.spawn_native('claude', '/tmp/proj', { cmd = { 'claude' } })
+
+    assert.is_nil(agent)
+    assert.are.equal(1, #calls) -- only the failed tab-create call, no agent start
+
+    Herdr.api = saved_api
+    vim.env.HERDR_WORKSPACE_ID = saved_ws
+  end)
+
   it('focused_workspace_label returns the focused workspace, excluding the herd label', function()
     local saved = Herdr.api
     Herdr.api = function(args)

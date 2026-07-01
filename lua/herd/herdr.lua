@@ -190,6 +190,41 @@ function M.spawn(name, cwd, def, workspace, tab_label)
   return agent
 end
 
+--- Spawn an agent as a sibling herdr tab in nvim's own workspace (native
+--- mode) instead of a dedicated hidden workspace: `tab create` (no explicit
+--- `--workspace`; caller's `$HERDR_WORKSPACE_ID`, so the tab lands in the
+--- real project workspace nvim's own pane already lives in) → `agent start
+--- --tab` → close the spare pane the tab was created with, using the pane id
+--- `tab create` already returned (no `pane list` round trip needed).
+---@param name string unique agent name
+---@param cwd string
+---@param def herd.Tool
+---@return herd.Agent?
+function M.spawn_native(name, cwd, def)
+  local ws = vim.env.HERDR_WORKSPACE_ID
+  local created = M.api({ 'tab', 'create', '--workspace', ws, '--cwd', cwd, '--label', name, '--no-focus' })
+  local tab = created and created.tab and created.tab.tab_id
+  if not tab then
+    return nil -- error already surfaced by Herdr.run; no safe fallback placement
+  end
+  local spare_pane = created.root_pane and created.root_pane.pane_id
+  local args = { 'agent', 'start', name, '--cwd', cwd, '--tab', tab, '--no-focus' }
+  for k, v in pairs(def.env or {}) do
+    vim.list_extend(args, { '--env', ('%s=%s'):format(k, tostring(v)) })
+  end
+  args[#args + 1] = '--'
+  vim.list_extend(args, def.cmd)
+  local started = M.api(args)
+  local agent = started and started.agent
+  if agent then
+    agent.tab_id = tab
+    if spare_pane then
+      M.api({ 'pane', 'close', spare_pane })
+    end
+  end
+  return agent
+end
+
 --- argv to attach an nvim :terminal to a running agent's PTY (clean stream).
 --- `target` should be the unambiguous pane id (a bare tool name like "claude"
 --- can be ambiguous when herdr also detects same-tool processes).
