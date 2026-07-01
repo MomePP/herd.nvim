@@ -30,16 +30,21 @@ local function ensure_server()
   return false
 end
 
---- Show an agent float and remember it as the target.
+--- Show an agent (float in 'float' mode, herdr tab focus in 'native' mode)
+--- and remember it as the target.
 ---@param a herd.Agent
 local function show(a)
   M.target = a.name
-  -- Defer the float open: when show() runs inside a vim.ui.select callback (the
-  -- picker), opening the float + attach synchronously races the picker teardown
-  -- and the attach process gets killed (float blinks shut). A scheduled open runs
-  -- after the callback returns and is reliable from every caller.
+  -- Defer: when show() runs inside a vim.ui.select callback (the picker),
+  -- acting synchronously races the picker teardown (float mode: the attach
+  -- process gets killed, float blinks shut). A scheduled action runs after
+  -- the callback returns and is reliable from every caller, in both modes.
   vim.schedule(function()
-    Terminal.open(a.name, { cwd = a.cwd, pane = a.pane_id })
+    if Config.get().mode == 'native' then
+      Herdr.focus_tab(a.tab_id)
+    else
+      Terminal.open(a.name, { cwd = a.cwd, pane = a.pane_id })
+    end
   end)
 end
 
@@ -53,18 +58,25 @@ function M.spawn(tool)
   if not def then
     return vim.notify('herd: unknown tool ' .. tostring(tool), vim.log.levels.ERROR)
   end
-  local ws = Herdr.ensure_workspace(Config.get().workspace)
-  -- Tag the agent's tab with the originating project so the herdr sidebar reads
-  -- "<herd> · <project>" instead of a bare "herd". Prefer the focused workspace's
-  -- label (nvim's project), falling back to the cwd folder name.
-  local project = Herdr.focused_workspace_label(Config.get().workspace)
-    or vim.fn.fnamemodify(vim.fn.getcwd(), ':t')
-  local agent = Herdr.spawn(Herdr.next_name(tool), vim.fn.getcwd(), def, ws, project)
+  local agent, prune_ws
+  if Config.get().mode == 'native' then
+    agent = Herdr.spawn_native(Herdr.next_name(tool), vim.fn.getcwd(), def)
+    prune_ws = vim.env.HERDR_WORKSPACE_ID
+  else
+    local ws = Herdr.ensure_workspace(Config.get().workspace)
+    -- Tag the agent's tab with the originating project so the herdr sidebar reads
+    -- "<herd> · <project>" instead of a bare "herd". Prefer the focused workspace's
+    -- label (nvim's project), falling back to the cwd folder name.
+    local project = Herdr.focused_workspace_label(Config.get().workspace)
+      or vim.fn.fnamemodify(vim.fn.getcwd(), ':t')
+    agent = Herdr.spawn(Herdr.next_name(tool), vim.fn.getcwd(), def, ws, project)
+    prune_ws = ws
+  end
   if not agent then
     return -- error already surfaced by Herdr.run
   end
-  if ws then
-    Herdr.prune_workspace(ws, agent.tab_id) -- reap tabs left by killed agents
+  if prune_ws then
+    Herdr.prune_workspace(prune_ws, agent.tab_id) -- reap tabs left by killed agents
   end
   show(agent)
   vim.notify('herd: spawned ' .. agent.name)
@@ -97,7 +109,11 @@ function M.toggle()
     return M.select()
   end
   M.target = a.name
-  Terminal.toggle(a.name, { cwd = a.cwd, pane = a.pane_id })
+  if Config.get().mode == 'native' then
+    Herdr.focus_tab(a.tab_id)
+  else
+    Terminal.toggle(a.name, { cwd = a.cwd, pane = a.pane_id })
+  end
 end
 
 --- Grouped picker: switch to a running agent, or spawn a configured tool.
@@ -141,11 +157,8 @@ function M.send()
   if not a then
     return vim.notify('herd: no agents running in this project', vim.log.levels.WARN)
   end
-  M.target = a.name
   Herdr.agent_send(a.pane_id, text) -- target the unambiguous pane, not the name
-  vim.schedule(function()
-    Terminal.open(a.name, { cwd = a.cwd, pane = a.pane_id }) -- land in the agent to submit
-  end)
+  show(a) -- land in the agent to submit
   vim.notify('herd → ' .. a.name)
 end
 
