@@ -26,6 +26,11 @@ local M = {}
 
 ---@class herd.Config
 ---@field tools table<string, herd.Tool>
+---@field mode 'float'|'native'  display backend: 'float' (default) hosts each
+---                    agent in an nvim floating terminal; 'native' shows it as
+---                    a sibling herdr tab in nvim's own workspace instead —
+---                    requires nvim to run inside a herdr pane. `win.*` and
+---                    `keys.hide`/`keys.newline` only apply to 'float'.
 ---@field keys herd.Keys
 ---@field win herd.Win
 ---@field workspace string  herdr workspace label that hosts spawned agents
@@ -33,6 +38,7 @@ local M = {}
 ---@type herd.Config
 local defaults = {
   tools = {},
+  mode = 'float', -- 'native' requires nvim to run inside a herdr pane; see README
   workspace = 'herd.nvim', -- dedicated workspace label; signals nvim-spawned agents
   keys = {
     -- sidekick.nvim-style scheme: one key drives the active agent across modes.
