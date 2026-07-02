@@ -201,6 +201,19 @@ function M.setup(opts)
     )
     cfg.mode = 'float'
   end
+  -- experimental: surface this nvim in herdr's agents panel so herdr's own
+  -- agent navigation (next/previous_agent, focus_agent) cycles editors too.
+  if cfg.mode == 'native' and cfg.experimental.editor_agent and vim.env.HERDR_PANE_ID then
+    local pane = vim.env.HERDR_PANE_ID
+    local project = Herdr.tab_label(vim.env.HERDR_TAB_ID) or vim.fn.fnamemodify(vim.fn.getcwd(), ':t')
+    Herdr.report_editor(pane, project)
+    vim.api.nvim_create_autocmd('VimLeavePre', {
+      group = vim.api.nvim_create_augroup('herd_editor_agent', { clear = true }),
+      callback = function()
+        Herdr.release_editor(pane, project)
+      end,
+    })
+  end
   local map = vim.keymap.set
   if cfg.keys.toggle then
     map('n', cfg.keys.toggle, M.toggle, { desc = 'herd: toggle agent float (count = slot)' })

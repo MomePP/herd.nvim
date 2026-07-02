@@ -173,6 +173,41 @@ describe('herd init', function()
     assert.is_false(opened)
   end)
 
+  it('setup reports the editor into the agents panel when editor_agent is on (native)', function()
+    local saved_tab, saved_pane = vim.env.HERDR_TAB_ID, vim.env.HERDR_PANE_ID
+    vim.env.HERDR_TAB_ID, vim.env.HERDR_PANE_ID = 'w6:t1', 'w6:p1'
+    local Herdr = require('herd.herdr')
+    local saved_report, saved_label = Herdr.report_editor, Herdr.tab_label
+    Herdr.tab_label = function() return 'dotfiles' end
+    local reported
+    Herdr.report_editor = function(pane, project) reported = { pane, project } end
+
+    Herd.setup({ mode = 'native', experimental = { editor_agent = true } })
+
+    Herdr.report_editor, Herdr.tab_label = saved_report, saved_label
+    vim.env.HERDR_TAB_ID, vim.env.HERDR_PANE_ID = saved_tab, saved_pane
+
+    assert.are.same({ 'w6:p1', 'dotfiles' }, reported)
+    assert.is_true(#vim.api.nvim_get_autocmds({ group = 'herd_editor_agent' }) > 0)
+  end)
+
+  it('setup does not report the editor by default', function()
+    pcall(vim.api.nvim_del_augroup_by_name, 'herd_editor_agent')
+    local saved_tab, saved_pane = vim.env.HERDR_TAB_ID, vim.env.HERDR_PANE_ID
+    vim.env.HERDR_TAB_ID, vim.env.HERDR_PANE_ID = 'w6:t1', 'w6:p1'
+    local Herdr = require('herd.herdr')
+    local saved_report = Herdr.report_editor
+    local reported = false
+    Herdr.report_editor = function() reported = true end
+
+    Herd.setup({ mode = 'native' })
+
+    Herdr.report_editor = saved_report
+    vim.env.HERDR_TAB_ID, vim.env.HERDR_PANE_ID = saved_tab, saved_pane
+
+    assert.is_false(reported)
+  end)
+
   it('native mode skips the float-only TermOpen and mouse-passthrough autocmds', function()
     pcall(vim.api.nvim_del_augroup_by_name, 'herd_term')
     pcall(vim.api.nvim_del_augroup_by_name, 'herd_mouse')

@@ -347,4 +347,28 @@ describe('herd.herdr', function()
     )
     Herdr.api = saved
   end)
+
+  it('report_editor reports nvim as a herd.nvim-sourced agent row', function()
+    local got
+    local saved = Herdr.run
+    Herdr.run = function(args) got = args end
+    Herdr.report_editor('w6:p1', 'dotfiles')
+    assert.are.same(
+      { 'pane', 'report-agent', 'w6:p1', '--source', 'herd.nvim', '--agent', 'dotfiles', '--state', 'idle' },
+      got
+    )
+    Herdr.run = saved
+  end)
+
+  it('release_editor removes the reported editor row', function()
+    local got
+    local saved = Herdr.run
+    Herdr.run = function(args) got = args end
+    Herdr.release_editor('w6:p1', 'dotfiles')
+    assert.are.same(
+      { 'pane', 'release-agent', 'w6:p1', '--source', 'herd.nvim', '--agent', 'dotfiles' },
+      got
+    )
+    Herdr.run = saved
+  end)
 end)
