@@ -167,7 +167,8 @@ Resolution is stateless, from live herdr state: the focused agent tab's
 label (e.g. "dotfiles:claude_2" → the sibling tab labelled "dotfiles"),
 falling back to matching the agent's spawn cwd against your editor panes.
 When nothing matches (not a herd tab, editor gone) it shows a herdr
-notification and does nothing.
+notification and does nothing. If the herdr server is unreachable, the
+script exits silently without error — the keybind never surfaces a failure.
 
 In native mode, `:Herd dashboard` (or `keys.dashboard`) opens a picker
 over every running agent across all projects — rows read

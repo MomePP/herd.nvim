@@ -24,7 +24,7 @@ navigation uses standard nvim keybinds; there is no multiplexer round-trip.
 - 📊 **Dashboard** — unmapped by default; use `:Herd dashboard` or set `keys.dashboard` to a key. Float mode focuses the dedicated herd.nvim workspace; native mode opens the global cross-project agent picker.
 - 💾 **Persistence** — agents survive closing the float and `:q`; herdr owns the process and rediscovers them via `herdr agent list`.
 - 🩺 **`:checkhealth herd`** — verifies herdr, the server, and your tools.
-- 🪶 **Tiny** — seven small Lua files, one external dependency (the `herdr` binary).
+- 🪶 **Tiny** — eight small Lua files, one external dependency (the `herdr` binary).
 
 ## 📋 Requirements
 
@@ -127,7 +127,7 @@ Lua API `require('herd').{toggle,select,send,dashboard,spawn}()`.
 | placement | dedicated `herd.nvim` workspace, found-or-created via `herdr workspace list` / `herdr workspace create --no-focus --label herd.nvim` |
 | show in nvim | nvim float running `herdr agent attach <pane-id>` |
 | send selection | `herdr agent send <pane-id> <text>` |
-| dashboard | focus the dedicated `herd.nvim` workspace (`herdr workspace focus <ws>`) |
+| dashboard | float: focus the dedicated workspace (`herdr workspace focus <ws>`); native: global picker → `herdr agent focus <pane>` |
 
 Spawned agents are placed in a dedicated herdr workspace (default label `herd.nvim`) that lives off your project workspaces/tabs — so they never tile next to nvim when nvim runs inside a herdr session. The workspace is found-or-created automatically on each spawn and reused across spawns. When an agent exits herdr leaves its (now agentless) tab behind, so herd **reaps dead tabs on the next spawn**. The label is configurable via the `workspace` option.
 
