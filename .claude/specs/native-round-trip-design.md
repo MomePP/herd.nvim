@@ -36,14 +36,12 @@ Verified against a live herdr 0.7.1 server during design:
 
 ## Goals
 
-- **`herd return` gesture (herdr-side, `prefix+tab`)**: from an agent tab,
+- **`herd return` gesture (herdr-side, `prefix+s`)**: from an agent tab,
   jump back to the editor tab that spawned it — regardless of how the agent
   was reached.
 - **Global agent picker (nvim-side)**: `:Herd dashboard` / `keys.dashboard`
   in native mode lists *all* agents across workspaces and jumps to the
   selection.
-- **New default keybinds** (this plugin's defaults track its author's
-  setup): `<leader><tab>` toggle, `<leader>s` picker — see "Keybinds".
 - **Agent-first CLI alignment**: focus agents via `herdr agent focus
   <pane_id>` instead of `tab focus <tab_id>` where equivalent.
 - **Experiment (opt-in)**: register nvim itself in herdr's agents panel so
@@ -57,8 +55,11 @@ Verified against a live herdr 0.7.1 server during design:
   cover it; an explicit registry was considered and rejected — it
   replicates state herdr's tab labels already persist across restarts,
   at the cost of a stale-entry lifecycle.
+- No change to herd.nvim's keybind defaults — `keys.toggle`/`send`/`hide`
+  (`<leader>s`) and `keys.select` (`<leader>S`) stay as they are; only the
+  herdr side gains a binding.
 - No literal "re-dispatch herdr's default action" fallback for
-  `prefix+tab` — impossible via CLI (verified above); see "Fallback
+  `prefix+s` — impossible via CLI (verified above); see "Fallback
   semantics".
 - No change to the spawn dance (`tab create --label` → `agent start --tab`
   → close spare pane). A hypothetical `agent start --workspace` one-shot is
@@ -66,32 +67,24 @@ Verified against a live herdr 0.7.1 server during design:
 
 ## Keybinds
 
-Plugin defaults change (defaults track the author's setup; existing users
-can restore the old keys in `setup()`):
+herd.nvim's key defaults are **unchanged** (`<leader>s`
+toggle/send/hide, `<leader>S` picker, `keys.dashboard` unmapped —
+in native mode the dashboard becomes the global agent picker, see below).
 
-| Key | Mode | Action |
-| --- | --- | --- |
-| `<leader><tab>` | normal | `keys.toggle` — toggle this cwd's agent (count = slot). No agent in this project → falls through to the picker to spawn one (existing toggle fallback, unchanged). |
-| `<leader><tab>` | terminal | `keys.hide` — hide the float (float mode only; mirrors toggle). |
-| `<leader>s` | normal | `keys.select` — project-scoped picker: switch to a running agent or spawn a configured tool (was `<leader>S`). |
-| `<leader>s` | visual | `keys.send` — send selection to the active agent (unchanged). |
-| (unmapped) | normal | `keys.dashboard` — global agent picker in native mode (see below); `:Herd dashboard` always available. |
-
-herdr side (user's `~/.config/herdr/config.toml`, documented in the README
-— herd.nvim cannot configure it):
+The only new binding is herdr-side (user's `~/.config/herdr/config.toml`,
+documented in the README — herd.nvim cannot configure it):
 
 ```toml
 [[keys.command]]
-key = "prefix+tab"
+key = "prefix+s"
 type = "shell"
 command = "nvim -l <plugin-path>/bin/herd-return.lua"
 ```
 
-**Rebind required**: the user's config currently binds `prefix+tab` /
-`prefix+shift+tab` to symmetric pane cycling. The custom command shadows
-that binding on *every* tab, so pane cycling must move to another chord
-(user decision at implementation time). Loss is small on agent tabs —
-they are single-pane, where pane cycling is a no-op anyway.
+`prefix+s` **deliberately overrides herdr's default `settings` binding**.
+The custom command shadows it on every tab; the settings screen stays
+reachable only if the user rebinds `settings` to another chord (user
+decision at implementation time — noted in Open items).
 
 ## `herd return` — the back leg
 
@@ -129,11 +122,11 @@ already a plugin requirement, and ~50 ms of startup is fine for a keypress.
 
 The requested behavior — "agent unrelated to any editor → fall back to
 herdr's default" — cannot be implemented literally: herdr exposes no CLI
-to trigger a keybind action, and `pane focus` is directional-only, so the
-script cannot emulate the shadowed pane-cycle default either. Closest
-faithful behavior, adopted here: **notify + no-op** (step 4). On agent
-tabs the shadowed default was a no-op anyway (single pane); on other tabs
-the user rehomes pane cycling (see "Keybinds").
+to trigger a keybind action, so the script cannot open the shadowed
+`settings` screen (or any other default) when resolution fails. Closest
+faithful behavior, adopted here: **notify + no-op** (step 4). The user
+rebinds `settings` to another chord if they want it back on a key (see
+"Keybinds").
 
 ### Error handling
 
@@ -214,14 +207,8 @@ this spec depends on it.
 require('herd').setup({
   mode = 'float', -- unchanged default
 
-  keys = {
-    toggle    = '<leader><tab>', -- was '<leader>s'
-    hide      = '<leader><tab>', -- was '<leader>s' (float-only, mirrors toggle)
-    select    = '<leader>s',     -- was '<leader>S'
-    send      = '<leader>s',     -- unchanged (visual)
-    dashboard = false,           -- unchanged; native mode: global agent picker
-    newline   = '<S-CR>',        -- unchanged
-  },
+  -- keys.* unchanged; keys.dashboard now opens the global agent picker
+  -- in native mode (float mode: focuses the dedicated workspace, as before).
 
   experimental = {
     editor_agent = false, -- native only: report nvim into herdr's agents panel
@@ -237,15 +224,16 @@ require('herd').setup({
     non-agent focused tab, duplicate editor labels, no match.
   - `picker_spec.lua` — global variant rows/format and selection dispatch.
   - `init_spec.lua` — dashboard dispatch per mode; `editor_agent`
-    report/release calls (stubbed `Herdr.api`); new default keys.
-  - `config_spec.lua` — new defaults, `experimental` table.
+    report/release calls (stubbed `Herdr.api`).
+  - `config_spec.lua` — `experimental` table default (existing key
+    defaults unchanged).
 - Manual acceptance (real herdr server, the actual pain scenario):
   1. Two editors in one workspace (e.g. `gogo-code`, `gogo-code-lua`),
      spawn an agent from each; wander to the other project's agent via
-     sidebar/`next_agent`; `prefix+tab` lands on the *correct* editor tab.
-  2. Rename an agent's tab label, `prefix+tab` still returns via cwd
+     sidebar/`next_agent`; `prefix+s` lands on the *correct* editor tab.
+  2. Rename an agent's tab label, `prefix+s` still returns via cwd
      fallback.
-  3. `prefix+tab` on a non-agent tab → notification, no-op.
+  3. `prefix+s` on a non-agent tab → notification, no-op.
   4. From `dotfiles` nvim, global picker → jump to an agent in another
      workspace; herdr flips workspace.
   5. `experimental.editor_agent = true` → editor row appears in the panel,
@@ -260,5 +248,6 @@ require('herd').setup({
   server reachable (expected; it's the documented detached variant).
 - Confirm reported-agent rows are name-less in `agent list` (else add the
   `source` filter).
-- Pick the new home for the user's pane-cycling binds displaced from
-  `prefix+tab` (herdr config, user-side).
+- Decide whether to rebind herdr's `settings` action (displaced from
+  `prefix+s` by the herd-return command) to another chord (herdr config,
+  user-side).
