@@ -21,7 +21,7 @@ navigation uses standard nvim keybinds; there is no multiplexer round-trip.
 - 🔄 **Toggle** — `<leader>s` (normal) opens/closes this cwd's agent; `count` targets a numbered slot.
 - ✂️ **Send selection** — visual `<leader>s` pushes the selection to the active agent (no Enter — review, then submit).
 - 🗂 **Grouped picker** — `<leader>S` lists running agents **for the current project** and configured tools. Use the dashboard for a cross-project view.
-- 📊 **Dashboard** — unmapped by default; use `:Herd dashboard` or set `keys.dashboard` to a key to focus the dedicated herd.nvim workspace in herdr.
+- 📊 **Dashboard** — unmapped by default; use `:Herd dashboard` or set `keys.dashboard` to a key. Float mode focuses the dedicated herd.nvim workspace; native mode opens the global cross-project agent picker.
 - 💾 **Persistence** — agents survive closing the float and `:q`; herdr owns the process and rediscovers them via `herdr agent list`.
 - 🩺 **`:checkhealth herd`** — verifies herdr, the server, and your tools.
 - 🪶 **Tiny** — seven small Lua files, one external dependency (the `herdr` binary).
@@ -93,6 +93,12 @@ require('herd').setup({
                           -- Shift+drag to select). false = hand the mouse to the terminal
                           -- so a plain drag selects natively (agent loses its mouse in the float).
   },
+
+  -- Experimental (unstable, may change or vanish):
+  experimental = {
+    editor_agent = false, -- native only: report this nvim into herdr's agents panel,
+                          -- so next/previous_agent cycle editors alongside agents
+  },
 })
 ```
 
@@ -104,7 +110,7 @@ require('herd').setup({
 | `<leader>s` | visual | Send the selection to the active agent (no Enter — the float opens so you can review and submit). |
 | `<leader>s` | terminal | Hide the float from inside the agent. |
 | `<leader>S` | normal | Grouped picker (**current project only**): switch to a running agent or spawn a configured tool. Rows show `name  [status]`. |
-| (unmapped) | normal | Focus the dedicated herd.nvim workspace in herdr. Use `:Herd dashboard` or set `keys.dashboard` to a key. |
+| (unmapped) | normal | Dashboard. Use `:Herd dashboard` or set `keys.dashboard` to a key. Float mode focuses the dedicated herd.nvim workspace; native mode opens the global cross-project agent picker. |
 | `<S-CR>` | terminal | Send a newline (kitty `Esc[13;2u`) to the agent — for multi-line prompts without submitting. |
 
 Also available as `:Herd [toggle|select|send|dashboard]`, `:Herd spawn <tool>`, and the
@@ -168,6 +174,35 @@ navigation instead:
 
 Bind these in `~/.config/herdr/config.toml`'s `[keys]` section — they're
 herdr-native navigation, not something herd.nvim can configure.
+
+### Round trip: `herd-return`
+
+The bindings above are generic herdr navigation — they don't know *which*
+editor spawned the focused agent. `bin/herd-return.lua` does. Bind it in
+`~/.config/herdr/config.toml` and one key jumps from any herd agent tab
+back to its origin editor tab, no matter how you reached the agent
+(sidebar, `next_agent`, tab cycling, workspace hops):
+
+```toml
+[[keys.command]]
+key = "prefix+s"   # overrides herdr's default `settings` binding —
+type = "shell"     # rebind `settings` elsewhere if you use that screen
+command = "nvim -l /path/to/herd.nvim/bin/herd-return.lua"
+```
+
+Resolution is stateless, from live herdr state: the focused agent tab's
+label (`dotfiles:claude_2` → the sibling tab labelled `dotfiles`), falling
+back to matching the agent's spawn cwd against your editor panes. When
+nothing matches (not a herd tab, editor gone) it shows a herdr notification
+and does nothing — herdr has no CLI to re-dispatch the key's default action.
+
+### Dashboard: global agent picker
+
+In native mode `:Herd dashboard` (or `keys.dashboard`) opens a picker over
+**every running agent across all projects** — rows read
+`dotfiles:claude_2  [working]  · dotfiles-config` — and selecting one
+focuses its tab, flipping workspace when the agent lives elsewhere.
+(Float mode keeps the old behavior: focus the dedicated herd workspace.)
 
 ## ❓ FAQ
 

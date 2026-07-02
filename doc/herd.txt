@@ -55,6 +55,9 @@ Options ~                                                       *herd-config*
               hide      = "<leader>s"       (terminal) hide the float
               select    = "<leader>S"       (normal)   grouped picker
               dashboard = false             (normal)   unmapped; use :Herd dashboard
+                                                       (native mode: opens the global
+                                                       cross-project agent picker instead
+                                                       — see |herd-native-mode|)
               newline   = "<S-CR>"          (terminal) send CLI newline (Shift-Enter)
 
     win     { width, height, border, footer, winblend, winhighlight, mouse }
@@ -82,6 +85,13 @@ Options ~                                                       *herd-config*
                Each agent gets its own tab labelled with its project, so the
                herdr sidebar reads "<workspace> · <project>". herd targets
                agents by pane id (a bare tool name can be ambiguous to herdr).
+
+    experimental  { editor_agent }                          EXPERIMENTAL
+               Unstable — may change or vanish. Defaults:
+                 editor_agent = false   'native' mode only: report this nvim
+                                        into herdr's agents panel, so
+                                        next_agent/previous_agent cycle
+                                        editors alongside agents.
 
 ==============================================================================
 MAPPINGS                                                      *herd-mappings*
@@ -139,6 +149,28 @@ not — nvim isn't focused while herdr shows another tab, so it's ordinary
 herdr tab/pane navigation instead: `last_pane` (if bound), `previous_tab` /
 `next_tab`, or `next_agent` / `previous_agent`. Configure these in
 `~/.config/herdr/config.toml`'s `[keys]` section, not in herd.nvim.
+
+`bin/herd-return.lua`, run headlessly via `nvim -l`, adds a herdr-bound
+round trip that knows which editor spawned the focused agent:
+
+>toml
+    [[keys.command]]
+    key = "prefix+s"
+    type = "shell"
+    command = "nvim -l /path/to/herd.nvim/bin/herd-return.lua"
+<
+
+Resolution is stateless, from live herdr state: the focused agent tab's
+label (e.g. "dotfiles:claude_2" → the sibling tab labelled "dotfiles"),
+falling back to matching the agent's spawn cwd against your editor panes.
+When nothing matches (not a herd tab, editor gone) it shows a herdr
+notification and does nothing.
+
+In native mode, `:Herd dashboard` (or `keys.dashboard`) opens a picker
+over every running agent across all projects — rows read
+"dotfiles:claude_2  [working]  · dotfiles-config" — and selecting one
+focuses its tab, flipping workspace when the agent lives elsewhere. Float
+mode keeps the old behavior: focus the dedicated herd.nvim workspace.
 
 ==============================================================================
 COMMANDS                                                      *herd-commands*
