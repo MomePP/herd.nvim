@@ -25,12 +25,17 @@ local Origin = require('herd.origin')
 local function api(args)
   local cmd = { 'herdr' }
   vim.list_extend(cmd, args)
-  local res = vim.system(cmd, { text = true }):wait()
-  if res.code ~= 0 then
+  -- pcall: vim.system throws synchronously when the binary can't be spawned
+  -- (herdr uninstalled) — a keybind must degrade silently, never stack-trace.
+  local spawned, res = pcall(function()
+    return vim.system(cmd, { text = true }):wait()
+  end)
+  if not spawned or res.code ~= 0 then
     return nil
   end
   local ok, decoded = pcall(vim.json.decode, res.stdout or '')
-  return ok and decoded.result or nil
+  -- type guard: a bare JSON `null` decodes to vim.NIL (userdata), not a table
+  return (ok and type(decoded) == 'table') and decoded.result or nil
 end
 
 local tabs = api({ 'tab', 'list' })
