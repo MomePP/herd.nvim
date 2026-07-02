@@ -171,10 +171,18 @@ function M.send()
   vim.notify('herd → ' .. a.name)
 end
 
---- Surface the agent pool: focus the dedicated herd workspace in the herdr client.
+--- Surface the agent pool. Float mode: focus the dedicated herd workspace in
+--- the herdr client. Native mode: agents live in real project workspaces (the
+--- dedicated workspace is unused), so open a global picker over every running
+--- agent instead — selecting one focuses it, flipping workspace when needed.
 function M.dashboard()
   if not ensure_server() then
     return
+  end
+  if Config.get().mode == 'native' then
+    return Picker.open_global(function(item)
+      show(item.agent)
+    end)
   end
   local ws = Herdr.ensure_workspace(Config.get().workspace)
   if not ws then

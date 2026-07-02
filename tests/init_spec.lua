@@ -123,6 +123,56 @@ describe('herd init', function()
     assert.is_false(toggled)
   end)
 
+  it('dashboard opens the global agent picker in native mode', function()
+    local saved_env = vim.env.HERDR_TAB_ID
+    vim.env.HERDR_TAB_ID = 'w6:t1'
+    Herd.setup({ mode = 'native' })
+
+    local Herdr = require('herd.herdr')
+    local Picker = require('herd.picker')
+    local saved_server, saved_ensure = Herdr.server_running, Herdr.ensure_workspace
+    local saved_global = Picker.open_global
+    Herdr.server_running = function() return true end
+    local ensured = false
+    Herdr.ensure_workspace = function() ensured = true end
+    local opened = false
+    Picker.open_global = function() opened = true end
+
+    Herd.dashboard()
+
+    Herdr.server_running, Herdr.ensure_workspace = saved_server, saved_ensure
+    Picker.open_global = saved_global
+    vim.env.HERDR_TAB_ID = saved_env
+
+    assert.is_true(opened)
+    assert.is_false(ensured) -- the dedicated-workspace path is float-only
+  end)
+
+  it('dashboard still focuses the dedicated workspace in float mode', function()
+    Herd.setup({ mode = 'float' })
+
+    local Herdr = require('herd.herdr')
+    local Picker = require('herd.picker')
+    local saved_server, saved_ensure, saved_focus_ws =
+      Herdr.server_running, Herdr.ensure_workspace, Herdr.focus_workspace
+    local saved_global = Picker.open_global
+    Herdr.server_running = function() return true end
+    Herdr.ensure_workspace = function() return 'wH' end
+    local focused
+    Herdr.focus_workspace = function(id) focused = id end
+    local opened = false
+    Picker.open_global = function() opened = true end
+
+    Herd.dashboard()
+
+    Herdr.server_running, Herdr.ensure_workspace, Herdr.focus_workspace =
+      saved_server, saved_ensure, saved_focus_ws
+    Picker.open_global = saved_global
+
+    assert.are.equal('wH', focused)
+    assert.is_false(opened)
+  end)
+
   it('native mode skips the float-only TermOpen and mouse-passthrough autocmds', function()
     pcall(vim.api.nvim_del_augroup_by_name, 'herd_term')
     pcall(vim.api.nvim_del_augroup_by_name, 'herd_mouse')
