@@ -14,12 +14,12 @@ describe('herd.herdr', function()
     Herdr.run = saved
   end)
 
-  it('focus_tab runs the tab focus command', function()
+  it('agent_focus runs the agent focus command', function()
     local got
     local saved = Herdr.run
     Herdr.run = function(args) got = args end
-    Herdr.focus_tab('wH:t2')
-    assert.are.same({ 'tab', 'focus', 'wH:t2' }, got)
+    Herdr.agent_focus('w6:pQ')
+    assert.are.same({ 'agent', 'focus', 'w6:pQ' }, got)
     Herdr.run = saved
   end)
 

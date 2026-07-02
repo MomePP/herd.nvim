@@ -30,7 +30,7 @@ local function ensure_server()
   return false
 end
 
---- Show an agent (float in 'float' mode, herdr tab focus in 'native' mode)
+--- Show an agent (float in 'float' mode, herdr agent focus in 'native' mode)
 --- and remember it as the target.
 ---@param a herd.Agent
 local function show(a)
@@ -41,7 +41,7 @@ local function show(a)
   -- the callback returns and is reliable from every caller, in both modes.
   vim.schedule(function()
     if Config.get().mode == 'native' then
-      Herdr.focus_tab(a.tab_id)
+      Herdr.agent_focus(a.pane_id)
     else
       Terminal.open(a.name, { cwd = a.cwd, pane = a.pane_id })
     end
@@ -119,7 +119,7 @@ function M.toggle()
   end
   M.target = a.name
   if Config.get().mode == 'native' then
-    Herdr.focus_tab(a.tab_id)
+    Herdr.agent_focus(a.pane_id)
   else
     Terminal.toggle(a.name, { cwd = a.cwd, pane = a.pane_id })
   end

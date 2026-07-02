@@ -299,11 +299,13 @@ function M.focus_workspace(id)
   M.run({ 'workspace', 'focus', id }, { quiet = true })
 end
 
---- Focus a specific tab — used by native mode to switch herdr's visible tab
---- between nvim's own tab and an agent's tab, in place, in the same window.
----@param tab_id string
-function M.focus_tab(tab_id)
-  M.run({ 'tab', 'focus', tab_id }, { quiet = true })
+--- Focus an agent by its unambiguous pane id — herdr switches the visible tab
+--- (and workspace, when the agent lives elsewhere) to the agent's pane. Used
+--- by native mode; the agent-first equivalent of `tab focus`, verified
+--- behaviorally identical against a live server.
+---@param target string pane id (preferred) or unique agent name
+function M.agent_focus(target)
+  M.run({ 'agent', 'focus', target }, { quiet = true })
 end
 
 --- Send literal text to an agent (no Enter — review then submit).
