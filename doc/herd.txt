@@ -109,9 +109,11 @@ MAPPINGS                                                      *herd-mappings*
     <leader>S       (normal)    Grouped picker (current project only): switch
                                 to a running agent or spawn a configured tool.
                                 Rows show "name  [status]".
-    (unmapped)      (normal)    Dashboard: focus the dedicated herd.nvim workspace
-                                in herdr. Use `:Herd dashboard` or set
-                                `keys.dashboard` to a key.
+    (unmapped)      (normal)    Dashboard: float mode focuses the dedicated
+                                herd.nvim workspace in herdr; native mode opens
+                                the global cross-project agent picker (see
+                                |herd-native-mode|). Use `:Herd dashboard` or
+                                set `keys.dashboard` to a key.
     <S-CR>          (terminal)  Send a CLI newline (kitty Esc[13;2u) to the
                                 agent — buffer-local map for multi-line prompts
                                 without submitting.
@@ -127,8 +129,9 @@ reattach:
 
 - Run <leader>S (picker) or `:Herd select` — lists agents for the current project.
 - Run `:Herd toggle` to reopen the float for the current project's agent.
-- Use `:Herd dashboard` (or set `keys.dashboard`) to focus the herd.nvim workspace
-  in herdr and surface agents from all projects in herdr's native view.
+- Use `:Herd dashboard` (or set `keys.dashboard`): float mode focuses the
+  herd.nvim workspace; native mode opens the global cross-project agent picker
+  (see |herd-native-mode|).
 
 Agents are rediscovered via `herdr agent list`; as long as the herdr server
 is running, sessions persist across nvim restarts.
