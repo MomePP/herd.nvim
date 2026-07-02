@@ -42,16 +42,17 @@ describe('herd.herdr', function()
     local saved = Herdr.api
     Herdr.api = function()
       return { agents = {
-        { name = 'a', pane_id = 'p1', tab_id = 't1', agent_status = 'idle', cwd = '/tmp/x' },
-        { name = 'b', pane_id = 'p2', tab_id = 't2', agent_status = 'working', cwd = '/tmp/y' },
+        { name = 'a', pane_id = 'p1', tab_id = 't1', workspace_id = 'w1', agent_status = 'idle', cwd = '/tmp/x' },
+        { name = 'b', pane_id = 'p2', tab_id = 't2', workspace_id = 'w2', agent_status = 'working', cwd = '/tmp/y' },
         -- detected agent with no assigned name → must be skipped
-        { pane_id = 'p3', tab_id = 't3', agent_status = 'working', cwd = '/tmp/x' },
+        { pane_id = 'p3', tab_id = 't3', workspace_id = 'w1', agent_status = 'working', cwd = '/tmp/x' },
       } }
     end
     local all = Herdr.agents()
     assert.are.equal(2, #all)
     assert.are.equal('idle', all[1].status)
     assert.are.equal('t1', all[1].tab_id)
+    assert.are.equal('w1', all[1].workspace_id)
     local scoped = Herdr.agents(vim.fs.normalize('/tmp/x'))
     assert.are.equal(1, #scoped) -- only the named 'a', not the nameless p3
     assert.are.equal('a', scoped[1].name)
@@ -315,6 +316,35 @@ describe('herd.herdr', function()
     end
     assert.are.equal('dotfiles', Herdr.tab_label('w6:t1'))
     assert.is_nil(Herdr.tab_label('w6:tX'))
+    Herdr.api = saved
+  end)
+
+  it('workspace_labels maps workspace ids to labels in one call', function()
+    local saved = Herdr.api
+    Herdr.api = function(args)
+      assert.are.same({ 'workspace', 'list' }, args)
+      return { workspaces = {
+        { workspace_id = 'w6', label = 'dotfiles-config' },
+        { workspace_id = 'wA', label = 'tlic-dev' },
+      } }
+    end
+    assert.are.same({ w6 = 'dotfiles-config', wA = 'tlic-dev' }, Herdr.workspace_labels())
+    Herdr.api = saved
+  end)
+
+  it('tab_labels maps tab ids to labels across all workspaces in one call', function()
+    local saved = Herdr.api
+    Herdr.api = function(args)
+      assert.are.same({ 'tab', 'list' }, args)
+      return { tabs = {
+        { tab_id = 'w6:tD', label = 'dotfiles:claude_2' },
+        { tab_id = 'wA:t8', label = 'ado-badge:claude' },
+      } }
+    end
+    assert.are.same(
+      { ['w6:tD'] = 'dotfiles:claude_2', ['wA:t8'] = 'ado-badge:claude' },
+      Herdr.tab_labels()
+    )
     Herdr.api = saved
   end)
 end)
