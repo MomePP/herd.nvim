@@ -55,6 +55,63 @@ With [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 `opts` is passed to `require('herd').setup(opts)`.
 
+## ⚡ Quick start (native mode)
+
+The setup below is the full herdr-native experience: agents live as sibling
+herdr tabs next to nvim, with a two-key round trip. It needs **one extra
+step outside nvim** — the return-trip keybind in herdr's config — which is
+why it gets a walkthrough. (Prefer zero setup? Skip this section: the
+default `mode = 'float'` works with nothing but the Installation snippet
+above, and nvim doesn't even need to run inside a herdr pane.)
+
+**1. Run nvim inside a herdr pane** — native mode reads `$HERDR_TAB_ID` /
+`$HERDR_WORKSPACE_ID` from the environment herdr sets on its panes (without
+them, `setup()` warns and falls back to float mode).
+
+**2. Enable native mode** in your plugin spec:
+
+```lua
+{
+  'MomePP/herd.nvim',
+  event = 'VeryLazy',
+  opts = {
+    mode = 'native',
+    tools = {
+      claude = { cmd = { 'claude' } },
+    },
+  },
+}
+```
+
+**3. Bind the return trip** in `~/.config/herdr/config.toml` — nvim can't
+map this side: while an agent's tab is visible, herdr (not nvim) receives
+your keys, so the way *back* must be a herdr binding:
+
+```toml
+[[keys.command]]
+key = 'prefix+\'   # unbound in herdr by default
+type = "shell"
+command = "nvim -l /path/to/herd.nvim/bin/herd-return.lua"
+```
+
+Point `command` at wherever your plugin manager installed herd.nvim (e.g.
+lazy.nvim: `~/.local/share/nvim/lazy/herd.nvim/bin/herd-return.lua`), then
+apply it with `herdr server reload-config`.
+
+**4. The loop:**
+
+| | Key | |
+| --- | --- | --- |
+| → | `<leader>\` | spawn/toggle this project's agent (its tab replaces your view) |
+| ← | `prefix+\` | jump back to the editor tab that spawned the focused agent |
+| ⇱ | `<leader>s` | project picker: switch agents here, or spawn another tool |
+| ⇲ | `<leader>S` | dashboard: every agent across all projects, with live preview |
+
+The two legs rhyme on purpose: *leader*-`\` goes to the agent, *prefix*-`\`
+comes home — and the return works no matter how you wandered to the agent
+(sidebar, tab cycling, workspace hops). See "Native mode" below for how it
+resolves the origin editor.
+
 ## ⚙️ Configuration
 
 Defaults:
