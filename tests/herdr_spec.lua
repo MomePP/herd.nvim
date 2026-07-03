@@ -371,4 +371,21 @@ describe('herd.herdr', function()
     )
     Herdr.run = saved
   end)
+
+  it('agent_read returns the visible pane text', function()
+    local saved = Herdr.api
+    Herdr.api = function(args)
+      assert.are.same({ 'agent', 'read', 'w6:pQ', '--source', 'visible', '--format', 'text' }, args)
+      return { read = { text = 'hello\nworld' } }
+    end
+    assert.are.equal('hello\nworld', Herdr.agent_read('w6:pQ'))
+    Herdr.api = saved
+  end)
+
+  it('agent_read is nil when the read fails', function()
+    local saved = Herdr.api
+    Herdr.api = function() return nil end
+    assert.is_nil(Herdr.agent_read('w6:pQ'))
+    Herdr.api = saved
+  end)
 end)

@@ -315,6 +315,15 @@ function M.agent_send(target, text)
   M.run({ 'agent', 'send', target, text })
 end
 
+--- Recent visible output of an agent's pane, as plain text — used by the
+--- snacks picker's preview pane to show what an agent is doing.
+---@param pane_id string
+---@return string?
+function M.agent_read(pane_id)
+  local res = M.api({ 'agent', 'read', pane_id, '--source', 'visible', '--format', 'text' }, { quiet = true })
+  return res and res.read and res.read.text
+end
+
 --- EXPERIMENTAL (config.experimental.editor_agent): report nvim's own pane as
 --- a herd.nvim-sourced agent row, so it appears in herdr's agents panel next
 --- to the agents it spawned and herdr's agent navigation cycles editors too.

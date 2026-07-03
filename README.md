@@ -203,6 +203,10 @@ In native mode `:Herd dashboard` (or `keys.dashboard`) opens a picker over
 `dotfiles:claude_2  [working]  · dotfiles-config` — and selecting one
 focuses its tab, flipping workspace when the agent lives elsewhere.
 (Float mode keeps the old behavior: focus the dedicated herd workspace.)
+When [snacks.nvim](https://github.com/folke/snacks.nvim) is installed, both
+the project picker and the dashboard render through `Snacks.picker`
+(full-size, with a preview pane showing each agent's metadata and live
+output); without it they fall back to `vim.ui.select`.
 
 ## ❓ FAQ
 

@@ -9,6 +9,9 @@ local M = {}
 ---@field agent? herd.Agent
 ---@field tool? string
 ---@field label string
+---@field def? herd.Tool
+---@field ws? string
+---@field tab_label? string
 
 --- @param agents herd.Agent[]
 --- @param tools table<string, herd.Tool>
@@ -33,7 +36,7 @@ function M.items(agents, tools)
   local names = vim.tbl_keys(tools)
   table.sort(names)
   for _, n in ipairs(names) do
-    items[#items + 1] = { tool = n, label = '+ ' .. n }
+    items[#items + 1] = { tool = n, def = tools[n], label = '+ ' .. n }
   end
   return items
 end
@@ -61,6 +64,8 @@ function M.items_global(agents, ws_labels, tab_labels)
   for _, a in ipairs(running) do
     items[#items + 1] = {
       agent = a,
+      ws = ws_labels[a.workspace_id],
+      tab_label = tab_labels[a.tab_id],
       label = ('%s  [%s]  · %s'):format(
         tab_labels[a.tab_id] or a.name,
         a.status or '?',
@@ -69,6 +74,56 @@ function M.items_global(agents, ws_labels, tab_labels)
     }
   end
   return items
+end
+
+--- Metadata header lines for a picker preview pane. Pure — no CLI calls;
+--- the live-output tail is appended by the snacks glue, not here.
+---@param it herd.PickItem
+---@return string[]
+function M.preview_meta(it)
+  if it.tool then
+    local lines = { '+ ' .. it.tool }
+    local def = it.def or {}
+    if def.cmd then
+      lines[#lines + 1] = 'cmd: ' .. table.concat(def.cmd, ' ')
+    end
+    for k, v in pairs(def.env or {}) do
+      lines[#lines + 1] = ('env: %s=%s'):format(k, tostring(v))
+    end
+    return lines
+  end
+  local a = it.agent
+  local lines = { ('%s  [%s]'):format(a.name, a.status or '?'), 'cwd: ' .. (a.cwd or '?') }
+  local ws = it.ws or a.workspace_id
+  if ws then
+    lines[#lines + 1] = 'workspace: ' .. ws
+  end
+  if it.tab_label then
+    lines[#lines + 1] = 'tab: ' .. it.tab_label
+  end
+  return lines
+end
+
+--- Render a picker: Snacks.picker (full layout + preview pane) when
+--- available, else the plain vim.ui.select fallback.
+---@param items herd.PickItem[]
+---@param title string
+---@param on_choice fun(item: herd.PickItem)
+local function choose(items, title, on_choice)
+  local Spicker = require('herd.snackspicker') -- lazy: avoids a require cycle
+  if Spicker.available() then
+    return Spicker.open(items, title, on_choice)
+  end
+  vim.ui.select(items, {
+    prompt = title,
+    format_item = function(i)
+      return i.label
+    end,
+  }, function(i)
+    if i then
+      on_choice(i)
+    end
+  end)
 end
 
 --- Open the global picker over every running agent (cross-project). The
@@ -80,16 +135,7 @@ function M.open_global(on_choice)
   if #items == 0 then
     return vim.notify('herd: no agents running', vim.log.levels.WARN)
   end
-  vim.ui.select(items, {
-    prompt = 'herd (all projects):',
-    format_item = function(i)
-      return i.label
-    end,
-  }, function(i)
-    if i then
-      on_choice(i)
-    end
-  end)
+  choose(items, 'herd (all projects):', on_choice)
 end
 
 --- Open the picker. `on_choice` receives the chosen `herd.PickItem` (or is not
@@ -101,16 +147,7 @@ function M.open(on_choice)
   if #items == 0 then
     return vim.notify('herd: no agents running and no tools configured', vim.log.levels.WARN)
   end
-  vim.ui.select(items, {
-    prompt = 'herd:',
-    format_item = function(i)
-      return i.label
-    end,
-  }, function(i)
-    if i then
-      on_choice(i)
-    end
-  end)
+  choose(items, 'herd:', on_choice)
 end
 
 return M
