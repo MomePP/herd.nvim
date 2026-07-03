@@ -1,5 +1,12 @@
 # herd.nvim — native-mode round trip (agent ↔ origin editor)
 
+> **Status: SHIPPED** (merge `8fbe29b`, 2026-07-03). Historical design
+> record. Superseded details: key defaults became the leader-doubled scheme
+> (`<leader>\` toggle/send/hide, `<leader>s` picker, `<leader>S` dashboard)
+> and herd-return moved to `prefix+\`; the Snacks rendering was scoped to
+> the dashboard only; the editor_agent experiment was removed (see the
+> Outcome note in its section). Current behavior: README / doc/herd.txt.
+
 ## Premise
 
 Native mode's forward leg (editor → agent) works well, but two navigation

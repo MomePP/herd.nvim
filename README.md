@@ -71,7 +71,8 @@ require('herd').setup({
                     -- (full layout + live agent preview); 'select' forces plain vim.ui.select.
                     -- The project picker (keys.select) always uses vim.ui.select.
 
-  workspace = 'herd.nvim',  -- herdr workspace label that hosts spawned agents (kept off your project tabs)
+  workspace = 'herd.nvim',  -- float mode only: herdr workspace label that hosts spawned agents
+                            -- (kept off your project tabs). Native mode uses nvim's own workspace.
 
   -- Keymaps. Set any to `false` to disable it.
   keys = {
@@ -122,15 +123,13 @@ Lua API `require('herd').{toggle,select,send,dashboard,spawn}()`.
 | What | herdr command |
 | --- | --- |
 | discover agents | `herdr agent list` (nameless *detected* agents are skipped — herd targets by name) |
-| spawn | `herdr tab create --workspace <ws> --label <project>` → `herdr agent start <name> --tab <tab> --no-focus -- <argv>` → close the tab's spare pane so the agent fills it |
-| placement | dedicated `herd.nvim` workspace, found-or-created via `herdr workspace list` / `herdr workspace create --no-focus --label herd.nvim` |
-| show in nvim | nvim float running `herdr agent attach <pane-id>` |
+| spawn | `herdr tab create --workspace <ws> --label <label>` → `herdr agent start <name> --tab <tab> --no-focus -- <argv>` → close the tab's spare pane so the agent fills it |
+| placement | float: dedicated `herd.nvim` workspace, found-or-created via `herdr workspace list/create`; native: nvim's own workspace (`$HERDR_WORKSPACE_ID`), tab labelled `<project>:<agent>` |
+| show | float: nvim float running `herdr agent attach <pane-id>`; native: `herdr agent focus <pane-id>` |
 | send selection | `herdr agent send <pane-id> <text>` |
 | dashboard | float: focus the dedicated workspace (`herdr workspace focus <ws>`); native: global picker → `herdr agent focus <pane>` |
 
-Spawned agents are placed in a dedicated herdr workspace (default label `herd.nvim`) that lives off your project workspaces/tabs — so they never tile next to nvim when nvim runs inside a herdr session. The workspace is found-or-created automatically on each spawn and reused across spawns. When an agent exits herdr leaves its (now agentless) tab behind, so herd **reaps dead tabs on the next spawn**. The label is configurable via the `workspace` option.
-
-Each agent gets its **own tab inside that workspace, labelled with its project** (the focused workspace's label, falling back to the cwd folder), so the herdr sidebar reads `<workspace> · <project>` (e.g. `herd.nvim · dotfiles-config`). The spare pane the tab is created with is closed so the agent fills the tab (fullscreen when viewed in herdr, without zooming — which would steal focus). Note herdr only renders the `· <project>` suffix when the workspace holds **2+ tabs** (2+ agents); with a single agent it shows just the workspace name.
+In **float mode**, spawned agents are placed in a dedicated herdr workspace (default label `herd.nvim`) that lives off your project workspaces/tabs — so they never tile next to nvim when nvim runs inside a herdr session. Each agent gets its own tab there, labelled with its project, so the herdr sidebar reads `<workspace> · <project>` (herdr only renders the `· <project>` suffix with 2+ tabs). In **native mode**, agents land as sibling tabs in nvim's *own* workspace instead, labelled `<project>:<agent>` — see "Native mode" below. In both modes the tab's spare pane is closed so the agent fills the tab, and when an agent exits herd **reaps its dead tab on the next spawn** (native mode reaps only tabs carrying this project's `<project>:` label prefix).
 
 herd targets agents by their **pane id**, not by name: a bare tool name like `claude` is ambiguous to herdr when it also detects same-tool processes in other panes, so `attach`/`send` use the unique pane id.
 

@@ -1,5 +1,11 @@
 # herd.nvim — native mode (herdr-native display, no nvim window)
 
+> **Status: SHIPPED** (merge `118e26c`, 2026-07-01). Historical design
+> record. Superseded details: native tabs are labelled `<project>:<agent>`
+> (not `herd:`), focus moved from `tab focus` to `agent focus <pane_id>`,
+> and the return trip is now herd-return on `prefix+\` (see
+> native-round-trip-design.md). Current behavior: README / doc/herd.txt.
+
 ## Premise
 
 herd.nvim currently has exactly one display backend: a floating nvim

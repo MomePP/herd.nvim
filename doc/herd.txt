@@ -87,13 +87,14 @@ Options ~                                                       *herd-config*
                                       inside the float.
 
     workspace  string                                     (default: "herd.nvim")
-               herdr workspace label for spawned agents; herd.nvim
-               finds or creates this workspace on each spawn to keep agents
-               off your project workspaces/tabs. Configurable via the
-               `workspace` option.
-               Each agent gets its own tab labelled with its project, so the
-               herdr sidebar reads "<workspace> · <project>". herd targets
-               agents by pane id (a bare tool name can be ambiguous to herdr).
+               Float mode only: herdr workspace label for spawned agents;
+               herd.nvim finds or creates this workspace on each spawn to
+               keep agents off your project workspaces/tabs, one labelled
+               tab per agent ("<workspace> · <project>" in the sidebar).
+               Native mode ignores it — agents land as sibling tabs in
+               nvim's own workspace, labelled "<project>:<agent>". In both
+               modes herd targets agents by pane id (a bare tool name can
+               be ambiguous to herdr).
 
 ==============================================================================
 MAPPINGS                                                      *herd-mappings*
@@ -123,10 +124,10 @@ MAPPINGS                                                      *herd-mappings*
 PERSISTENCE                                                 *herd-persistence*
 
 herdr owns each agent's PTY. Hiding the float (or closing nvim entirely)
-only detaches the nvim terminal — the agent keeps running in herdr. Spawned
-agents live in a dedicated herdr workspace (default label "herd.nvim"), off your
-project workspaces/tabs; the workspace is found-or-created on each spawn. To
-reattach:
+only detaches the nvim terminal — the agent keeps running in herdr. Float
+mode places agents in a dedicated herdr workspace (default "herd.nvim"),
+off your project workspaces/tabs; native mode places them as sibling tabs
+in nvim's own workspace. To reattach after a restart:
 
 - Run <leader>s (picker) or `:Herd select` — lists agents for the current project.
 - Run `:Herd toggle` to reopen the float for the current project's agent.

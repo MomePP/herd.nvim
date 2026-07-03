@@ -1,5 +1,10 @@
 # herd.nvim — nvim-host float manager over a herdr backend
 
+> **Status: SHIPPED** (merge `5e163de`). Historical design record for the
+> original float mode. Key defaults have since changed twice (now the
+> leader-doubled scheme) and `mode = 'native'` was added on top. Current
+> behavior: README / doc/herd.txt.
+
 ## Premise
 
 Today herd.nvim is a **spawner for a herdr-hosted layout**: nvim lives in one
