@@ -91,6 +91,27 @@ describe('herd.snackspicker', function()
     assert.is_false(selected)
   end)
 
+  it('project picker (<leader>S) always uses vim.ui.select, even with snacks present', function()
+    package.loaded['snacks.picker'] = { pick = function() error('snacks must not render the project picker') end }
+    local Config = require('herd.config')
+    Config.options = nil
+    Config.setup({ tools = { claude = { cmd = { 'claude' } } } })
+    local Herdr = require('herd.herdr')
+    local saved_agents = Herdr.agents
+    Herdr.agents = function() return {} end
+    local selected = false
+    local saved_select = vim.ui.select
+    vim.ui.select = function() selected = true end
+
+    require('herd.picker').open(function() end)
+
+    vim.ui.select = saved_select
+    Herdr.agents = saved_agents
+    Config.options = nil
+
+    assert.is_true(selected)
+  end)
+
   it('picker = "select" forces the vim.ui.select fallback even with snacks present', function()
     package.loaded['snacks.picker'] = { pick = function() error('snacks must not be used') end }
     local Config = require('herd.config')

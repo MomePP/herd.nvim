@@ -1,7 +1,9 @@
---- Snacks.picker rendering for herd's pickers: full default layout with a
---- preview pane (agent metadata header + live pane output). Loaded lazily
---- from picker.lua's chooser; falls back to vim.ui.select when snacks.nvim
---- is not installed (see Picker.choose).
+--- Snacks.picker rendering for herd's GLOBAL picker (the native-mode
+--- dashboard): full default layout with a preview pane (agent metadata
+--- header + live pane output). Loaded lazily from picker.open_global, which
+--- falls back to vim.ui.select when snacks.nvim is absent or the user set
+--- `picker = 'select'`. The project picker (`<leader>S`) never uses this —
+--- its short switch/spawn list fits the compact ui_select popup.
 local M = {}
 
 ---@return boolean
@@ -9,17 +11,17 @@ function M.available()
   return (pcall(require, 'snacks.picker'))
 end
 
---- Preview pane content: metadata header, then live output for agent rows.
+--- Preview pane content: metadata header, then the agent's live output.
 ---@param it herd.PickItem
 ---@return string[] lines, string title
 local function preview_content(it)
   local lines = require('herd.picker').preview_meta(it)
-  if it.agent and it.agent.pane_id then
+  if it.agent.pane_id then
     lines[#lines + 1] = string.rep('─', 40)
     local out = require('herd.herdr').agent_read(it.agent.pane_id)
     vim.list_extend(lines, vim.split(out or '(no output)', '\n'))
   end
-  return lines, it.agent and it.agent.name or it.tool or ''
+  return lines, it.agent.name
 end
 
 --- Open a Snacks picker over herd PickItems.

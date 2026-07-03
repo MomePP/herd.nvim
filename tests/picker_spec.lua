@@ -53,11 +53,6 @@ describe('herd.picker', function()
     assert.are.equal('claude  [idle]  · ?', items[1].label)
   end)
 
-  it('items attaches the tool def to spawn entries', function()
-    local items = Picker.items({}, { claude = { cmd = { 'claude', '--x' } } })
-    assert.are.same({ 'claude', '--x' }, items[1].def.cmd)
-  end)
-
   it('items_global attaches ws and tab_label for the preview header', function()
     local items = Picker.items_global(
       { { name = 'claude', status = 'idle', pane_id = 'p', tab_id = 'w6:tD', workspace_id = 'w6' } },
@@ -68,7 +63,7 @@ describe('herd.picker', function()
     assert.are.equal('dotfiles:claude', items[1].tab_label)
   end)
 
-  it('preview_meta renders an agent header and a tool header', function()
+  it('preview_meta renders the agent metadata header', function()
     local agent_lines = Picker.preview_meta({
       agent = { name = 'claude_4', status = 'idle', cwd = '/p/x', workspace_id = 'w9' },
       ws = 'gogo-dev',
@@ -81,12 +76,5 @@ describe('herd.picker', function()
       'workspace: gogo-dev',
       'tab: gogo-code:claude_4',
     }, agent_lines)
-
-    local tool_lines = Picker.preview_meta({
-      tool = 'claude',
-      def = { cmd = { 'claude', '--x' }, env = { A = '1' } },
-      label = '+ claude',
-    })
-    assert.are.same({ '+ claude', 'cmd: claude --x', 'env: A=1' }, tool_lines)
   end)
 end)

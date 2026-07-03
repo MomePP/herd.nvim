@@ -49,11 +49,13 @@ Options ~                                                       *herd-config*
             `win.*` and `keys.hide`/`keys.newline` apply to 'float' only.
 
     picker  'auto'|'select'                                 (default: "auto")
-            'auto' renders both pickers via snacks.nvim when installed —
-            full picker layout with a preview pane showing each agent's
+            Renderer for the GLOBAL agent picker (the native-mode
+            dashboard). 'auto' uses snacks.nvim when installed — full
+            picker layout with a preview pane showing each agent's
             metadata and live output — falling back to plain vim.ui.select
             otherwise. 'select' forces vim.ui.select even when snacks.nvim
-            is installed.
+            is installed. The project picker (`keys.select`) always uses
+            vim.ui.select.
 
     keys    { toggle, send, hide, select, dashboard, newline }
             Set any to false to disable. Defaults:
@@ -182,9 +184,10 @@ over every running agent across all projects — rows read
 "dotfiles:claude_2  [working]  · dotfiles-config" — and selecting one
 focuses its tab, flipping workspace when the agent lives elsewhere. Float
 mode keeps the old behavior: focus the dedicated herd.nvim workspace. When
-snacks.nvim is installed, both the project picker and the dashboard render
-through Snacks.picker (full-size, with a preview pane showing each agent's
-metadata and live output); without it they fall back to vim.ui.select.
+snacks.nvim is installed, the dashboard renders through Snacks.picker
+(full-size, with a preview pane showing each agent's metadata and live
+output); without it — or with `picker = "select"` — it falls back to
+vim.ui.select. The project picker always uses the compact vim.ui.select.
 
 ==============================================================================
 COMMANDS                                                      *herd-commands*

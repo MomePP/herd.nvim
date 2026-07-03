@@ -67,8 +67,9 @@ require('herd').setup({
   mode = 'float',  -- 'native' shows agents as herdr tabs instead of nvim floats
                     -- (requires nvim to run inside a herdr pane). See "Native mode" below.
 
-  picker = 'auto', -- 'auto' renders the pickers via snacks.nvim when installed (full
-                    -- layout + live agent preview); 'select' forces plain vim.ui.select.
+  picker = 'auto', -- global/dashboard picker renderer: 'auto' uses snacks.nvim when installed
+                    -- (full layout + live agent preview); 'select' forces plain vim.ui.select.
+                    -- The project picker (keys.select) always uses vim.ui.select.
 
   workspace = 'herd.nvim',  -- herdr workspace label that hosts spawned agents (kept off your project tabs)
 
@@ -206,10 +207,12 @@ In native mode `:Herd dashboard` (or `keys.dashboard`) opens a picker over
 `dotfiles:claude_2  [working]  · dotfiles-config` — and selecting one
 focuses its tab, flipping workspace when the agent lives elsewhere.
 (Float mode keeps the old behavior: focus the dedicated herd workspace.)
-When [snacks.nvim](https://github.com/folke/snacks.nvim) is installed, both
-the project picker and the dashboard render through `Snacks.picker`
-(full-size, with a preview pane showing each agent's metadata and live
-output); without it they fall back to `vim.ui.select`.
+When [snacks.nvim](https://github.com/folke/snacks.nvim) is installed, the
+dashboard renders through `Snacks.picker` (full-size, with a preview pane
+showing each agent's metadata and live output); without it — or with
+`picker = 'select'` — it falls back to `vim.ui.select`. The project picker
+(`keys.select`) always uses the compact `vim.ui.select`, which fits its
+short switch/spawn list.
 
 ## ❓ FAQ
 
