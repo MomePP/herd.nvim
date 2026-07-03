@@ -24,15 +24,8 @@ local M = {}
 ---                      while a float is focused so a plain drag selects natively (the
 ---                      agent loses its mouse inside the float).
 
----@class herd.Experimental
----@field editor_agent boolean  native only: report nvim's own pane into herdr's
----                    agents panel (source `herd.nvim`), so herdr's own agent
----                    navigation (next/previous_agent, focus_agent) cycles
----                    editors alongside agents. Unstable — may change or vanish.
-
 ---@class herd.Config
 ---@field tools table<string, herd.Tool>
----@field experimental herd.Experimental
 ---@field mode 'float'|'native'  display backend: 'float' (default) hosts each
 ---                    agent in an nvim floating terminal; 'native' shows it as
 ---                    a sibling herdr tab in nvim's own workspace instead —
@@ -77,9 +70,6 @@ local defaults = {
     winblend = 0,
     winhighlight = '',
     mouse = true, -- false hands the mouse to the terminal in floats (plain-drag selection)
-  },
-  experimental = {
-    editor_agent = false, -- native only: show this nvim in herdr's agents panel (unstable)
   },
 }
 

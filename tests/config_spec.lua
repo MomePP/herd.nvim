@@ -40,11 +40,6 @@ describe('herd.config', function()
     assert.are.equal('native', c.mode)
   end)
 
-  it('experimental defaults: editor_agent off', function()
-    local c = Config.setup({})
-    assert.is_false(c.experimental.editor_agent)
-  end)
-
   it('picker defaults to auto and can be forced to select', function()
     assert.are.equal('auto', Config.setup({}).picker)
     Config.options = nil

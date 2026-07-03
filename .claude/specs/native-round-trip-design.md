@@ -201,6 +201,13 @@ Risks, to verify at implementation:
 If the experiment misbehaves, the flag flips off and no other feature in
 this spec depends on it.
 
+**Outcome (2026-07-03, live trial):** worked mechanically (row appeared,
+panel cycling included the editor, release on quit was clean, no discovery
+pollution) but was rejected on UX grounds — the agents panel should contain
+only agents; with several editor instances it becomes a mess. The feature
+was removed entirely (see `.claude/knowledges/herdr-reported-agent-rows.md`
+for the herdr facts it established and where the code lives in history).
+
 ## Configuration (proposed shape)
 
 ```lua
@@ -239,6 +246,30 @@ require('herd').setup({
   5. `experimental.editor_agent = true` → editor row appears in the panel,
      `next_agent` cycles editor ↔ agent, row disappears on `:q`, and
      `<leader>s` picker does *not* list the editor as an agent.
+
+## Addendum: Snacks picker integration (post-acceptance follow-up)
+
+User feedback during acceptance: the `vim.ui.select`-rendered pickers are
+tiny, and rows alone don't tell you what an agent is doing. Decision
+(defaults chosen per user's setup — snacks.nvim is their `vim.ui.select`
+provider anyway):
+
+- **Both pickers** (project `<leader>S` and the global dashboard) render
+  through `Snacks.picker.pick` when snacks.nvim is available, falling back
+  to `vim.ui.select` unchanged when it is not. No new config option —
+  detection via `pcall(require, 'snacks.picker')`.
+- **Preview pane = metadata header + live agent output**: agent rows show
+  name/status/cwd/workspace-tab header, a separator, then the agent's
+  recent terminal output via a new `Herdr.agent_read(pane_id, lines)`
+  (`herdr agent read <pane> --lines 40 --format text`, quiet). Spawn rows
+  (`+ tool`) preview the tool's argv and env.
+- Glue lives in a new `lua/herd/snackspicker.lua`; `picker.lua` keeps the
+  pure item builders (which gain `ws`/`tab_label` fields on global items
+  for the header) and dispatches through one internal chooser. Confirm
+  path mirrors snacks' own ui_select provider: close picker, then
+  `vim.schedule` the `on_choice` callback.
+- Size comes free: `Snacks.picker.pick` uses the full default layout with
+  a preview split, unlike the compact `ui_select` layout.
 
 ## Open items (resolve during implementation; not blockers)
 

@@ -324,23 +324,4 @@ function M.agent_read(pane_id)
   return res and res.read and res.read.text
 end
 
---- EXPERIMENTAL (config.experimental.editor_agent): report nvim's own pane as
---- a herd.nvim-sourced agent row, so it appears in herdr's agents panel next
---- to the agents it spawned and herdr's agent navigation cycles editors too.
----@param pane_id string nvim's own pane ($HERDR_PANE_ID)
----@param project string display label (nvim's tab label / cwd basename)
-function M.report_editor(pane_id, project)
-  M.run(
-    { 'pane', 'report-agent', pane_id, '--source', 'herd.nvim', '--agent', project, '--state', 'idle' },
-    { quiet = true }
-  )
-end
-
---- Remove the reported editor row (paired with `report_editor`; VimLeavePre).
----@param pane_id string
----@param project string
-function M.release_editor(pane_id, project)
-  M.run({ 'pane', 'release-agent', pane_id, '--source', 'herd.nvim', '--agent', project }, { quiet = true })
-end
-
 return M

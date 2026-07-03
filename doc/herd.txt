@@ -95,13 +95,6 @@ Options ~                                                       *herd-config*
                herdr sidebar reads "<workspace> · <project>". herd targets
                agents by pane id (a bare tool name can be ambiguous to herdr).
 
-    experimental  { editor_agent }                          EXPERIMENTAL
-               Unstable — may change or vanish. Defaults:
-                 editor_agent = false   'native' mode only: report this nvim
-                                        into herdr's agents panel, so
-                                        next_agent/previous_agent cycle
-                                        editors alongside agents.
-
 ==============================================================================
 MAPPINGS                                                      *herd-mappings*
 

@@ -98,11 +98,6 @@ require('herd').setup({
                           -- so a plain drag selects natively (agent loses its mouse in the float).
   },
 
-  -- Experimental (unstable, may change or vanish):
-  experimental = {
-    editor_agent = false, -- native only: report this nvim into herdr's agents panel,
-                          -- so next/previous_agent cycle editors alongside agents
-  },
 })
 ```
 
