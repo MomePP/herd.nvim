@@ -31,6 +31,13 @@ local M = {}
 ---                    a sibling herdr tab in nvim's own workspace instead —
 ---                    requires nvim to run inside a herdr pane. `win.*` and
 ---                    `keys.hide`/`keys.newline` only apply to 'float'.
+---@field picker 'auto'|'select'  renderer for the GLOBAL agent picker (the
+---                    native-mode dashboard): 'auto' (default) uses
+---                    Snacks.picker (full layout + live-output preview pane)
+---                    when snacks.nvim is installed, plain vim.ui.select
+---                    otherwise; 'select' forces vim.ui.select even with
+---                    snacks installed. The project picker (`keys.select`)
+---                    always uses vim.ui.select.
 ---@field keys herd.Keys
 ---@field win herd.Win
 ---@field workspace string  herdr workspace label that hosts spawned agents
@@ -39,14 +46,17 @@ local M = {}
 local defaults = {
   tools = {},
   mode = 'float', -- 'native' requires nvim to run inside a herdr pane; see README
+  picker = 'auto', -- global/dashboard picker only; 'select' forces plain vim.ui.select
   workspace = 'herd.nvim', -- dedicated workspace label; signals nvim-spawned agents
   keys = {
-    -- sidekick.nvim-style scheme: one key drives the active agent across modes.
-    toggle = '<leader>s',  -- (normal) toggle this cwd's agent; count = slot
-    send = '<leader>s',    -- (visual) send selection to the active agent
-    hide = '<leader>s',    -- (terminal) hide the float from inside
-    select = '<leader>S',  -- (normal) grouped picker (switch / spawn)
-    dashboard = false,     -- (normal) focus the herd workspace; off (use :Herd dashboard)
+    -- leader-doubled scheme: <leader>\ (leader is '\' → a double-tap) drives the
+    -- active agent across modes; s/S open the pickers. In native mode the herdr
+    -- side mirrors it: prefix+\ (herd-return) jumps back to the editor.
+    toggle = '<leader>\\', -- (normal) toggle this cwd's agent; count = slot
+    send = '<leader>\\',   -- (visual) send selection to the active agent
+    hide = '<leader>\\',   -- (terminal) hide the float from inside
+    select = '<leader>s',  -- (normal) grouped picker (switch / spawn)
+    dashboard = '<leader>S', -- (normal) global agent picker (native) / herd workspace (float)
     newline = '<S-CR>',    -- (terminal) send a CLI newline (kitty Shift-Enter) to the agent
   },
   win = {

@@ -45,6 +45,7 @@ end
 ---@field name string
 ---@field pane_id string
 ---@field tab_id string
+---@field workspace_id string
 ---@field status string
 ---@field cwd string
 
@@ -59,8 +60,14 @@ function M.agents(cwd)
     -- process it spotted in some pane). herd targets by name, so skip the
     -- nameless ones — they break next_name / picker labels and aren't reachable.
     if a.name and (not cwd or vim.fs.normalize(a.cwd or '') == cwd) then
-      ret[#ret + 1] =
-        { name = a.name, pane_id = a.pane_id, tab_id = a.tab_id, status = a.agent_status, cwd = a.cwd }
+      ret[#ret + 1] = {
+        name = a.name,
+        pane_id = a.pane_id,
+        tab_id = a.tab_id,
+        workspace_id = a.workspace_id,
+        status = a.agent_status,
+        cwd = a.cwd,
+      }
     end
   end
   return ret
@@ -209,6 +216,31 @@ function M.tab_label(tab_id)
   return res and res.tab and res.tab.label
 end
 
+--- Map of workspace_id → label, from one `workspace list` call. Used by the
+--- global picker to render cross-workspace agent rows.
+---@return table<string, string>
+function M.workspace_labels()
+  local list = M.api({ 'workspace', 'list' }, { quiet = true })
+  local ret = {}
+  for _, w in ipairs(list and list.workspaces or {}) do
+    ret[w.workspace_id] = w.label
+  end
+  return ret
+end
+
+--- Map of tab_id → label, from one `tab list` call (all workspaces). Used by
+--- the global picker: a native agent tab's label (`<project>:<agent>`) already
+--- names both the project and the agent.
+---@return table<string, string>
+function M.tab_labels()
+  local list = M.api({ 'tab', 'list' }, { quiet = true })
+  local ret = {}
+  for _, t in ipairs(list and list.tabs or {}) do
+    ret[t.tab_id] = t.label
+  end
+  return ret
+end
+
 --- Spawn an agent as a sibling herdr tab in nvim's own workspace (native
 --- mode) instead of a dedicated hidden workspace: `tab create` (no explicit
 --- `--workspace`; caller's `$HERDR_WORKSPACE_ID`, so the tab lands in the
@@ -267,11 +299,13 @@ function M.focus_workspace(id)
   M.run({ 'workspace', 'focus', id }, { quiet = true })
 end
 
---- Focus a specific tab — used by native mode to switch herdr's visible tab
---- between nvim's own tab and an agent's tab, in place, in the same window.
----@param tab_id string
-function M.focus_tab(tab_id)
-  M.run({ 'tab', 'focus', tab_id }, { quiet = true })
+--- Focus an agent by its unambiguous pane id — herdr switches the visible tab
+--- (and workspace, when the agent lives elsewhere) to the agent's pane. Used
+--- by native mode; the agent-first equivalent of `tab focus`, verified
+--- behaviorally identical against a live server.
+---@param target string pane id (preferred) or unique agent name
+function M.agent_focus(target)
+  M.run({ 'agent', 'focus', target }, { quiet = true })
 end
 
 --- Send literal text to an agent (no Enter — review then submit).
@@ -279,6 +313,15 @@ end
 ---@param text string
 function M.agent_send(target, text)
   M.run({ 'agent', 'send', target, text })
+end
+
+--- Recent visible output of an agent's pane, as plain text — used by the
+--- snacks picker's preview pane to show what an agent is doing.
+---@param pane_id string
+---@return string?
+function M.agent_read(pane_id)
+  local res = M.api({ 'agent', 'read', pane_id, '--source', 'visible', '--format', 'text' }, { quiet = true })
+  return res and res.read and res.read.text
 end
 
 return M

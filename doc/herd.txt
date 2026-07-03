@@ -48,13 +48,25 @@ Options ~                                                       *herd-config*
             requires nvim to run inside a herdr pane; see |herd-native-mode|.
             `win.*` and `keys.hide`/`keys.newline` apply to 'float' only.
 
+    picker  'auto'|'select'                                 (default: "auto")
+            Renderer for the GLOBAL agent picker (the native-mode
+            dashboard). 'auto' uses snacks.nvim when installed — full
+            picker layout with a preview pane showing each agent's
+            metadata and live output — falling back to plain vim.ui.select
+            otherwise. 'select' forces vim.ui.select even when snacks.nvim
+            is installed. The project picker (`keys.select`) always uses
+            vim.ui.select.
+
     keys    { toggle, send, hide, select, dashboard, newline }
             Set any to false to disable. Defaults:
-              toggle    = "<leader>s"       (normal)   toggle agent float; count = slot
-              send      = "<leader>s"       (visual)   send selection
-              hide      = "<leader>s"       (terminal) hide the float
-              select    = "<leader>S"       (normal)   grouped picker
-              dashboard = false             (normal)   unmapped; use :Herd dashboard
+              toggle    = "<leader>\\"      (normal)   toggle agent float; count = slot
+              send      = "<leader>\\"      (visual)   send selection
+              hide      = "<leader>\\"      (terminal) hide the float
+              select    = "<leader>s"       (normal)   grouped picker
+              dashboard = "<leader>S"       (normal)   dashboard: float mode focuses the
+                                                       herd workspace; native mode opens
+                                                       the global cross-project agent
+                                                       picker — see |herd-native-mode|
               newline   = "<S-CR>"          (terminal) send CLI newline (Shift-Enter)
 
     win     { width, height, border, footer, winblend, winhighlight, mouse }
@@ -86,22 +98,23 @@ Options ~                                                       *herd-config*
 ==============================================================================
 MAPPINGS                                                      *herd-mappings*
 
-    <leader>s       (normal)    Toggle this cwd's agent float. <count><key> targets
+    <leader>\       (normal)    Toggle this cwd's agent float. <count><key> targets
                                 slot N. An empty slot spawns the inferred tool's
                                 next clone (inferred: current target's base →
                                 first project agent's base → sole configured tool
                                 → else picker). Falls back to picker when no
                                 agent runs here.
-    <leader>s       (visual)    Send selection to the active agent (no Enter
+    <leader>\       (visual)    Send selection to the active agent (no Enter
                                 appended). The float opens so you can review
                                 and submit.
-    <leader>s       (terminal)  Hide the float from inside (buffer-local map).
-    <leader>S       (normal)    Grouped picker (current project only): switch
+    <leader>\       (terminal)  Hide the float from inside (buffer-local map).
+    <leader>s       (normal)    Grouped picker (current project only): switch
                                 to a running agent or spawn a configured tool.
                                 Rows show "name  [status]".
-    (unmapped)      (normal)    Dashboard: focus the dedicated herd.nvim workspace
-                                in herdr. Use `:Herd dashboard` or set
-                                `keys.dashboard` to a key.
+    <leader>S       (normal)    Dashboard: float mode focuses the dedicated
+                                herd.nvim workspace in herdr; native mode opens
+                                the global cross-project agent picker (see
+                                |herd-native-mode|). Also `:Herd dashboard`.
     <S-CR>          (terminal)  Send a CLI newline (kitty Esc[13;2u) to the
                                 agent — buffer-local map for multi-line prompts
                                 without submitting.
@@ -115,10 +128,11 @@ agents live in a dedicated herdr workspace (default label "herd.nvim"), off your
 project workspaces/tabs; the workspace is found-or-created on each spawn. To
 reattach:
 
-- Run <leader>S (picker) or `:Herd select` — lists agents for the current project.
+- Run <leader>s (picker) or `:Herd select` — lists agents for the current project.
 - Run `:Herd toggle` to reopen the float for the current project's agent.
-- Use `:Herd dashboard` (or set `keys.dashboard`) to focus the herd.nvim workspace
-  in herdr and surface agents from all projects in herdr's native view.
+- Use the dashboard (<leader>S or `:Herd dashboard`): float mode focuses the
+  herd.nvim workspace; native mode opens the global cross-project agent picker
+  (see |herd-native-mode|).
 
 Agents are rediscovered via `herdr agent list`; as long as the herdr server
 is running, sessions persist across nvim restarts.
@@ -139,6 +153,33 @@ not — nvim isn't focused while herdr shows another tab, so it's ordinary
 herdr tab/pane navigation instead: `last_pane` (if bound), `previous_tab` /
 `next_tab`, or `next_agent` / `previous_agent`. Configure these in
 `~/.config/herdr/config.toml`'s `[keys]` section, not in herd.nvim.
+
+`bin/herd-return.lua`, run headlessly via `nvim -l`, adds a herdr-bound
+round trip that knows which editor spawned the focused agent:
+
+>toml
+    [[keys.command]]
+    key = 'prefix+\'
+    type = "shell"
+    command = "nvim -l /path/to/herd.nvim/bin/herd-return.lua"
+<
+
+Resolution is stateless, from live herdr state: the focused agent tab's
+label (e.g. "dotfiles:claude_2" → the sibling tab labelled "dotfiles"),
+falling back to matching the agent's spawn cwd against your editor panes.
+When nothing matches (not a herd tab, editor gone) it shows a herdr
+notification and does nothing. If the herdr server is unreachable, the
+script exits silently without error — the keybind never surfaces a failure.
+
+In native mode, `:Herd dashboard` (or `keys.dashboard`) opens a picker
+over every running agent across all projects — rows read
+"dotfiles:claude_2  [working]  · dotfiles-config" — and selecting one
+focuses its tab, flipping workspace when the agent lives elsewhere. Float
+mode keeps the old behavior: focus the dedicated herd.nvim workspace. When
+snacks.nvim is installed, the dashboard renders through Snacks.picker
+(full-size, with a preview pane showing each agent's metadata and live
+output); without it — or with `picker = "select"` — it falls back to
+vim.ui.select. The project picker always uses the compact vim.ui.select.
 
 ==============================================================================
 COMMANDS                                                      *herd-commands*

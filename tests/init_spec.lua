@@ -65,19 +65,19 @@ describe('herd init', function()
 
     local Herdr = require('herd.herdr')
     local saved_server, saved_next, saved_spawn_native, saved_prune, saved_focus, saved_label =
-      Herdr.server_running, Herdr.next_name, Herdr.spawn_native, Herdr.prune_workspace, Herdr.focus_tab, Herdr.tab_label
+      Herdr.server_running, Herdr.next_name, Herdr.spawn_native, Herdr.prune_workspace, Herdr.agent_focus, Herdr.tab_label
     Herdr.server_running = function() return true end
     Herdr.next_name = function(tool) return tool end
     Herdr.tab_label = function(id) return id == 'w6:t1' and 'dotfiles' or nil end
     local spawn_project
     Herdr.spawn_native = function(name, _cwd, _def, project)
       spawn_project = project
-      return { name = name, tab_id = 'w6:t9' }
+      return { name = name, tab_id = 'w6:t9', pane_id = 'w6:pQ' }
     end
     local pruned
     Herdr.prune_workspace = function(ws, keep, prefix) pruned = { ws, keep, prefix } end
     local focused
-    Herdr.focus_tab = function(id) focused = id end
+    Herdr.agent_focus = function(id) focused = id end
     local saved_notify = vim.notify
     vim.notify = function() end
 
@@ -85,14 +85,14 @@ describe('herd init', function()
     vim.wait(200, function() return focused ~= nil end, 5) -- show() defers via vim.schedule
 
     vim.notify = saved_notify
-    Herdr.server_running, Herdr.next_name, Herdr.spawn_native, Herdr.prune_workspace, Herdr.focus_tab, Herdr.tab_label =
+    Herdr.server_running, Herdr.next_name, Herdr.spawn_native, Herdr.prune_workspace, Herdr.agent_focus, Herdr.tab_label =
       saved_server, saved_next, saved_spawn_native, saved_prune, saved_focus, saved_label
     vim.env.HERDR_TAB_ID, vim.env.HERDR_WORKSPACE_ID = saved_tab_env, saved_ws_env
 
     -- agent tab named after nvim's own tab label; reaper scoped to "<project>:"
     assert.are.equal('dotfiles', spawn_project)
     assert.are.same({ 'w6', 'w6:t9', 'dotfiles:' }, pruned)
-    assert.are.equal('w6:t9', focused)
+    assert.are.equal('w6:pQ', focused)
   end)
 
   it('toggle focuses the agent tab via herdr in native mode (no float)', function()
@@ -102,25 +102,75 @@ describe('herd init', function()
 
     local Herdr = require('herd.herdr')
     local Terminal = require('herd.terminal')
-    local saved_server, saved_agents, saved_focus = Herdr.server_running, Herdr.agents, Herdr.focus_tab
+    local saved_server, saved_agents, saved_focus = Herdr.server_running, Herdr.agents, Herdr.agent_focus
     local saved_toggle = Terminal.toggle
     Herdr.server_running = function() return true end
     Herdr.agents = function()
       return { { name = 'claude', pane_id = 'w6:pQ', tab_id = 'w6:t9', status = 'idle', cwd = vim.fn.getcwd() } }
     end
     local focused
-    Herdr.focus_tab = function(id) focused = id end
+    Herdr.agent_focus = function(id) focused = id end
     local toggled = false
     Terminal.toggle = function() toggled = true end
 
     Herd.toggle()
 
-    Herdr.server_running, Herdr.agents, Herdr.focus_tab = saved_server, saved_agents, saved_focus
+    Herdr.server_running, Herdr.agents, Herdr.agent_focus = saved_server, saved_agents, saved_focus
     Terminal.toggle = saved_toggle
     vim.env.HERDR_TAB_ID = saved_tab_env
 
-    assert.are.equal('w6:t9', focused)
+    assert.are.equal('w6:pQ', focused)
     assert.is_false(toggled)
+  end)
+
+  it('dashboard opens the global agent picker in native mode', function()
+    local saved_env = vim.env.HERDR_TAB_ID
+    vim.env.HERDR_TAB_ID = 'w6:t1'
+    Herd.setup({ mode = 'native' })
+
+    local Herdr = require('herd.herdr')
+    local Picker = require('herd.picker')
+    local saved_server, saved_ensure = Herdr.server_running, Herdr.ensure_workspace
+    local saved_global = Picker.open_global
+    Herdr.server_running = function() return true end
+    local ensured = false
+    Herdr.ensure_workspace = function() ensured = true end
+    local opened = false
+    Picker.open_global = function() opened = true end
+
+    Herd.dashboard()
+
+    Herdr.server_running, Herdr.ensure_workspace = saved_server, saved_ensure
+    Picker.open_global = saved_global
+    vim.env.HERDR_TAB_ID = saved_env
+
+    assert.is_true(opened)
+    assert.is_false(ensured) -- the dedicated-workspace path is float-only
+  end)
+
+  it('dashboard still focuses the dedicated workspace in float mode', function()
+    Herd.setup({ mode = 'float' })
+
+    local Herdr = require('herd.herdr')
+    local Picker = require('herd.picker')
+    local saved_server, saved_ensure, saved_focus_ws =
+      Herdr.server_running, Herdr.ensure_workspace, Herdr.focus_workspace
+    local saved_global = Picker.open_global
+    Herdr.server_running = function() return true end
+    Herdr.ensure_workspace = function() return 'wH' end
+    local focused
+    Herdr.focus_workspace = function(id) focused = id end
+    local opened = false
+    Picker.open_global = function() opened = true end
+
+    Herd.dashboard()
+
+    Herdr.server_running, Herdr.ensure_workspace, Herdr.focus_workspace =
+      saved_server, saved_ensure, saved_focus_ws
+    Picker.open_global = saved_global
+
+    assert.are.equal('wH', focused)
+    assert.is_false(opened)
   end)
 
   it('native mode skips the float-only TermOpen and mouse-passthrough autocmds', function()

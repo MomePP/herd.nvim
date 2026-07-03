@@ -30,7 +30,7 @@ local function ensure_server()
   return false
 end
 
---- Show an agent (float in 'float' mode, herdr tab focus in 'native' mode)
+--- Show an agent (float in 'float' mode, herdr agent focus in 'native' mode)
 --- and remember it as the target.
 ---@param a herd.Agent
 local function show(a)
@@ -41,7 +41,7 @@ local function show(a)
   -- the callback returns and is reliable from every caller, in both modes.
   vim.schedule(function()
     if Config.get().mode == 'native' then
-      Herdr.focus_tab(a.tab_id)
+      Herdr.agent_focus(a.pane_id)
     else
       Terminal.open(a.name, { cwd = a.cwd, pane = a.pane_id })
     end
@@ -119,7 +119,7 @@ function M.toggle()
   end
   M.target = a.name
   if Config.get().mode == 'native' then
-    Herdr.focus_tab(a.tab_id)
+    Herdr.agent_focus(a.pane_id)
   else
     Terminal.toggle(a.name, { cwd = a.cwd, pane = a.pane_id })
   end
@@ -171,10 +171,18 @@ function M.send()
   vim.notify('herd → ' .. a.name)
 end
 
---- Surface the agent pool: focus the dedicated herd workspace in the herdr client.
+--- Surface the agent pool. Float mode: focus the dedicated herd workspace in
+--- the herdr client. Native mode: agents live in real project workspaces (the
+--- dedicated workspace is unused), so open a global picker over every running
+--- agent instead — selecting one focuses it, flipping workspace when needed.
 function M.dashboard()
   if not ensure_server() then
     return
+  end
+  if Config.get().mode == 'native' then
+    return Picker.open_global(function(item)
+      show(item.agent)
+    end)
   end
   local ws = Herdr.ensure_workspace(Config.get().workspace)
   if not ws then
