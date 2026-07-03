@@ -56,12 +56,14 @@ local defaults = {
   picker = 'auto', -- global/dashboard picker only; 'select' forces plain vim.ui.select
   workspace = 'herd.nvim', -- dedicated workspace label; signals nvim-spawned agents
   keys = {
-    -- sidekick.nvim-style scheme: one key drives the active agent across modes.
-    toggle = '<leader>s',  -- (normal) toggle this cwd's agent; count = slot
-    send = '<leader>s',    -- (visual) send selection to the active agent
-    hide = '<leader>s',    -- (terminal) hide the float from inside
-    select = '<leader>S',  -- (normal) grouped picker (switch / spawn)
-    dashboard = false,     -- (normal) focus the herd workspace; off (use :Herd dashboard)
+    -- leader-doubled scheme: <leader>\ (leader is '\' → a double-tap) drives the
+    -- active agent across modes; s/S open the pickers. In native mode the herdr
+    -- side mirrors it: prefix+\ (herd-return) jumps back to the editor.
+    toggle = '<leader>\\', -- (normal) toggle this cwd's agent; count = slot
+    send = '<leader>\\',   -- (visual) send selection to the active agent
+    hide = '<leader>\\',   -- (terminal) hide the float from inside
+    select = '<leader>s',  -- (normal) grouped picker (switch / spawn)
+    dashboard = '<leader>S', -- (normal) global agent picker (native) / herd workspace (float)
     newline = '<S-CR>',    -- (terminal) send a CLI newline (kitty Shift-Enter) to the agent
   },
   win = {

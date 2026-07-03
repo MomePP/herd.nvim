@@ -59,14 +59,14 @@ Options ~                                                       *herd-config*
 
     keys    { toggle, send, hide, select, dashboard, newline }
             Set any to false to disable. Defaults:
-              toggle    = "<leader>s"       (normal)   toggle agent float; count = slot
-              send      = "<leader>s"       (visual)   send selection
-              hide      = "<leader>s"       (terminal) hide the float
-              select    = "<leader>S"       (normal)   grouped picker
-              dashboard = false             (normal)   unmapped; use :Herd dashboard
-                                                       (native mode: opens the global
-                                                       cross-project agent picker instead
-                                                       — see |herd-native-mode|)
+              toggle    = "<leader>\\"      (normal)   toggle agent float; count = slot
+              send      = "<leader>\\"      (visual)   send selection
+              hide      = "<leader>\\"      (terminal) hide the float
+              select    = "<leader>s"       (normal)   grouped picker
+              dashboard = "<leader>S"       (normal)   dashboard: float mode focuses the
+                                                       herd workspace; native mode opens
+                                                       the global cross-project agent
+                                                       picker — see |herd-native-mode|
               newline   = "<S-CR>"          (terminal) send CLI newline (Shift-Enter)
 
     win     { width, height, border, footer, winblend, winhighlight, mouse }
@@ -105,24 +105,23 @@ Options ~                                                       *herd-config*
 ==============================================================================
 MAPPINGS                                                      *herd-mappings*
 
-    <leader>s       (normal)    Toggle this cwd's agent float. <count><key> targets
+    <leader>\       (normal)    Toggle this cwd's agent float. <count><key> targets
                                 slot N. An empty slot spawns the inferred tool's
                                 next clone (inferred: current target's base →
                                 first project agent's base → sole configured tool
                                 → else picker). Falls back to picker when no
                                 agent runs here.
-    <leader>s       (visual)    Send selection to the active agent (no Enter
+    <leader>\       (visual)    Send selection to the active agent (no Enter
                                 appended). The float opens so you can review
                                 and submit.
-    <leader>s       (terminal)  Hide the float from inside (buffer-local map).
-    <leader>S       (normal)    Grouped picker (current project only): switch
+    <leader>\       (terminal)  Hide the float from inside (buffer-local map).
+    <leader>s       (normal)    Grouped picker (current project only): switch
                                 to a running agent or spawn a configured tool.
                                 Rows show "name  [status]".
-    (unmapped)      (normal)    Dashboard: float mode focuses the dedicated
+    <leader>S       (normal)    Dashboard: float mode focuses the dedicated
                                 herd.nvim workspace in herdr; native mode opens
                                 the global cross-project agent picker (see
-                                |herd-native-mode|). Use `:Herd dashboard` or
-                                set `keys.dashboard` to a key.
+                                |herd-native-mode|). Also `:Herd dashboard`.
     <S-CR>          (terminal)  Send a CLI newline (kitty Esc[13;2u) to the
                                 agent — buffer-local map for multi-line prompts
                                 without submitting.
@@ -136,9 +135,9 @@ agents live in a dedicated herdr workspace (default label "herd.nvim"), off your
 project workspaces/tabs; the workspace is found-or-created on each spawn. To
 reattach:
 
-- Run <leader>S (picker) or `:Herd select` — lists agents for the current project.
+- Run <leader>s (picker) or `:Herd select` — lists agents for the current project.
 - Run `:Herd toggle` to reopen the float for the current project's agent.
-- Use `:Herd dashboard` (or set `keys.dashboard`): float mode focuses the
+- Use the dashboard (<leader>S or `:Herd dashboard`): float mode focuses the
   herd.nvim workspace; native mode opens the global cross-project agent picker
   (see |herd-native-mode|).
 
@@ -167,7 +166,7 @@ round trip that knows which editor spawned the focused agent:
 
 >toml
     [[keys.command]]
-    key = "prefix+s"
+    key = 'prefix+\'
     type = "shell"
     command = "nvim -l /path/to/herd.nvim/bin/herd-return.lua"
 <
