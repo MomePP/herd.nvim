@@ -55,14 +55,39 @@ With [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 `opts` is passed to `require('herd').setup(opts)`.
 
-## ⚡ Quick start (native mode)
+## ⚡ Quick start
 
-The setup below is the full herdr-native experience: agents live as sibling
-herdr tabs next to nvim, with a two-key round trip. It needs **one extra
-step outside nvim** — the return-trip keybind in herdr's config — which is
-why it gets a walkthrough. (Prefer zero setup? Skip this section: the
-default `mode = 'float'` works with nothing but the Installation snippet
-above, and nvim doesn't even need to run inside a herdr pane.)
+Two display backends — pick one:
+
+### Float mode (default, zero extra setup)
+
+Agents show inside a fullscreen nvim floating terminal. Works anywhere —
+nvim does **not** need to run inside a herdr pane, and there is nothing to
+configure beyond the Installation snippet above:
+
+```lua
+{
+  'MomePP/herd.nvim',
+  event = 'VeryLazy',
+  opts = {
+    tools = {
+      claude = { cmd = { 'claude' } },
+    },
+  },
+}
+```
+
+That's it: `<leader>\` spawns/toggles this project's agent float (and hides
+it again from inside), `<leader>s` opens the picker. The whole round trip
+stays inside nvim, so no herdr keybind is needed.
+
+### Native mode (herdr tabs + two-key round trip)
+
+Agents live as **sibling herdr tabs** next to nvim — scrolling and
+drag-select are native terminal behavior, and herdr's status indicators
+attribute each agent to its real project. It needs **one extra step outside
+nvim** — the return-trip keybind in herdr's config — because the way *back*
+can't be an nvim mapping.
 
 **1. Run nvim inside a herdr pane** — native mode reads `$HERDR_TAB_ID` /
 `$HERDR_WORKSPACE_ID` from the environment herdr sets on its panes (without
@@ -83,9 +108,9 @@ them, `setup()` warns and falls back to float mode).
 }
 ```
 
-**3. Bind the return trip** in `~/.config/herdr/config.toml` — nvim can't
-map this side: while an agent's tab is visible, herdr (not nvim) receives
-your keys, so the way *back* must be a herdr binding:
+**3. Bind the return trip** in `~/.config/herdr/config.toml` — while an
+agent's tab is visible, herdr (not nvim) receives your keys, so this side
+must be a herdr binding:
 
 ```toml
 [[keys.command]]
