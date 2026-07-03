@@ -44,4 +44,11 @@ describe('herd.config', function()
     local c = Config.setup({})
     assert.is_false(c.experimental.editor_agent)
   end)
+
+  it('picker defaults to auto and can be forced to select', function()
+    assert.are.equal('auto', Config.setup({}).picker)
+    Config.options = nil
+    assert.are.equal('select', Config.setup({ picker = 'select' }).picker)
+    Config.options = nil -- don't leak the forced picker into other spec files
+  end)
 end)

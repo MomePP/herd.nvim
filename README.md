@@ -67,6 +67,9 @@ require('herd').setup({
   mode = 'float',  -- 'native' shows agents as herdr tabs instead of nvim floats
                     -- (requires nvim to run inside a herdr pane). See "Native mode" below.
 
+  picker = 'auto', -- 'auto' renders the pickers via snacks.nvim when installed (full
+                    -- layout + live agent preview); 'select' forces plain vim.ui.select.
+
   workspace = 'herd.nvim',  -- herdr workspace label that hosts spawned agents (kept off your project tabs)
 
   -- Keymaps. Set any to `false` to disable it.

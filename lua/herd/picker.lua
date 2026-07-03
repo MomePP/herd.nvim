@@ -105,13 +105,14 @@ function M.preview_meta(it)
 end
 
 --- Render a picker: Snacks.picker (full layout + preview pane) when
---- available, else the plain vim.ui.select fallback.
+--- available and not opted out (`picker = 'select'`), else the plain
+--- vim.ui.select fallback.
 ---@param items herd.PickItem[]
 ---@param title string
 ---@param on_choice fun(item: herd.PickItem)
 local function choose(items, title, on_choice)
   local Spicker = require('herd.snackspicker') -- lazy: avoids a require cycle
-  if Spicker.available() then
+  if Config.get().picker ~= 'select' and Spicker.available() then
     return Spicker.open(items, title, on_choice)
   end
   vim.ui.select(items, {

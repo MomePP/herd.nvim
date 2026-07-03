@@ -90,4 +90,29 @@ describe('herd.snackspicker', function()
     assert.is_truthy(captured)
     assert.is_false(selected)
   end)
+
+  it('picker = "select" forces the vim.ui.select fallback even with snacks present', function()
+    package.loaded['snacks.picker'] = { pick = function() error('snacks must not be used') end }
+    local Config = require('herd.config')
+    Config.options = nil
+    Config.setup({ picker = 'select' })
+    local Herdr = require('herd.herdr')
+    local saved_agents, saved_ws, saved_tabs = Herdr.agents, Herdr.workspace_labels, Herdr.tab_labels
+    Herdr.agents = function()
+      return { { name = 'a', pane_id = 'p', tab_id = 't', workspace_id = 'w', status = 'idle', cwd = '/p' } }
+    end
+    Herdr.workspace_labels = function() return { w = 'ws' } end
+    Herdr.tab_labels = function() return { t = 'a-tab' } end
+    local selected = false
+    local saved_select = vim.ui.select
+    vim.ui.select = function() selected = true end
+
+    require('herd.picker').open_global(function() end)
+
+    vim.ui.select = saved_select
+    Herdr.agents, Herdr.workspace_labels, Herdr.tab_labels = saved_agents, saved_ws, saved_tabs
+    Config.options = nil
+
+    assert.is_true(selected)
+  end)
 end)

@@ -38,6 +38,11 @@ local M = {}
 ---                    a sibling herdr tab in nvim's own workspace instead —
 ---                    requires nvim to run inside a herdr pane. `win.*` and
 ---                    `keys.hide`/`keys.newline` only apply to 'float'.
+---@field picker 'auto'|'select'  picker renderer: 'auto' (default) uses
+---                    Snacks.picker (full layout + live-output preview pane)
+---                    when snacks.nvim is installed, plain vim.ui.select
+---                    otherwise; 'select' forces vim.ui.select even with
+---                    snacks installed.
 ---@field keys herd.Keys
 ---@field win herd.Win
 ---@field workspace string  herdr workspace label that hosts spawned agents
@@ -46,6 +51,7 @@ local M = {}
 local defaults = {
   tools = {},
   mode = 'float', -- 'native' requires nvim to run inside a herdr pane; see README
+  picker = 'auto', -- 'select' forces plain vim.ui.select even when snacks.nvim is installed
   workspace = 'herd.nvim', -- dedicated workspace label; signals nvim-spawned agents
   keys = {
     -- sidekick.nvim-style scheme: one key drives the active agent across modes.

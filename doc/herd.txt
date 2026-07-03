@@ -48,6 +48,13 @@ Options ~                                                       *herd-config*
             requires nvim to run inside a herdr pane; see |herd-native-mode|.
             `win.*` and `keys.hide`/`keys.newline` apply to 'float' only.
 
+    picker  'auto'|'select'                                 (default: "auto")
+            'auto' renders both pickers via snacks.nvim when installed —
+            full picker layout with a preview pane showing each agent's
+            metadata and live output — falling back to plain vim.ui.select
+            otherwise. 'select' forces vim.ui.select even when snacks.nvim
+            is installed.
+
     keys    { toggle, send, hide, select, dashboard, newline }
             Set any to false to disable. Defaults:
               toggle    = "<leader>s"       (normal)   toggle agent float; count = slot
