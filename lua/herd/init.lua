@@ -23,11 +23,15 @@ end
 
 ---@return boolean
 local function ensure_server()
-  if Herdr.installed() and Herdr.server_running() then
-    return true
+  if not Herdr.installed() then
+    vim.notify('herd: `herdr` not found on $PATH — install it first', vim.log.levels.ERROR)
+    return false
   end
-  vim.notify('herd: no herdr server running — launch `herdr` first', vim.log.levels.WARN)
-  return false
+  if not Herdr.server_running() then
+    vim.notify('herd: no herdr server running — launch `herdr` first', vim.log.levels.WARN)
+    return false
+  end
+  return true
 end
 
 --- Show an agent (float in 'float' mode, herdr agent focus in 'native' mode)
@@ -285,8 +289,13 @@ function M.setup(opts)
     end
   end, {
     nargs = '?',
-    complete = function()
-      return { 'toggle', 'select', 'send', 'dashboard', 'spawn' }
+    complete = function(arg_lead, cmd_line)
+      -- after `spawn `, complete configured tool names; otherwise subcommands
+      local cands = cmd_line:match('^%S+%s+spawn%s') and vim.tbl_keys(Config.get().tools)
+        or { 'toggle', 'select', 'send', 'dashboard', 'spawn' }
+      return vim.tbl_filter(function(c)
+        return vim.startswith(c, arg_lead)
+      end, cands)
     end,
     desc = 'herd',
   })

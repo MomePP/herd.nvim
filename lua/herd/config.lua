@@ -79,7 +79,14 @@ M.options = nil
 ---@param opts? herd.Config
 ---@return herd.Config
 function M.setup(opts)
-  M.options = vim.tbl_deep_extend('force', defaults, opts or {})
+  opts = opts or {}
+  M.options = vim.tbl_deep_extend('force', defaults, opts)
+  -- `border` is a list; deep_extend merges lists by index, so a partial override
+  -- (e.g. `border = { '│' }`) would splice into the 8-element default rather than
+  -- replace it. Take a user-supplied border verbatim.
+  if opts.win and opts.win.border ~= nil then
+    M.options.win.border = opts.win.border
+  end
   return M.options
 end
 

@@ -5,6 +5,21 @@ describe('herd.herdr', function()
     assert.are.same({ 'herdr', 'agent', 'attach', 'claude' }, Herdr.attach_argv('claude'))
   end)
 
+  it('api returns nil for JSON-null stdout (bare null and {"result": null})', function()
+    local saved = Herdr.run
+    -- bare `null` decodes to vim.NIL (userdata) — indexing `.result` must not throw
+    Herdr.run = function() return 'null' end
+    assert.is_nil(Herdr.api({ 'tab', 'get', 'stale' }))
+    -- `{"result": null}` decodes to a table whose `.result` is vim.NIL (truthy);
+    -- callers that do `res and res.foo` would index a userdata and throw
+    Herdr.run = function() return '{"result": null}' end
+    assert.is_nil(Herdr.api({ 'tab', 'get', 'stale' }))
+    -- and a normal envelope still returns its result
+    Herdr.run = function() return '{"result": {"tab": {"label": "x"}}}' end
+    assert.are.same({ tab = { label = 'x' } }, Herdr.api({ 'tab', 'get', 'ok' }))
+    Herdr.run = saved
+  end)
+
   it('focus_workspace runs the workspace focus command', function()
     local got
     local saved = Herdr.run
@@ -21,11 +36,6 @@ describe('herd.herdr', function()
     Herdr.agent_focus('w6:pQ')
     assert.are.same({ 'agent', 'focus', 'w6:pQ' }, got)
     Herdr.run = saved
-  end)
-
-  it('slot_name: 1 is the base, n>1 is suffixed', function()
-    assert.are.equal('claude', Herdr.slot_name('claude', 1))
-    assert.are.equal('claude_2', Herdr.slot_name('claude', 2))
   end)
 
   it('next_name picks the first free clone slot', function()

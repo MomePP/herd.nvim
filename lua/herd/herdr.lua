@@ -26,7 +26,15 @@ end
 ---@return table?
 function M.api(args, opts)
   local ok, decoded = pcall(vim.json.decode, M.run(args, opts) or '')
-  return ok and decoded.result or nil
+  -- type guard: a bare JSON `null` decodes to vim.NIL (userdata), not a table,
+  -- so `decoded.result` would throw outside the pcall. A `{"result": null}`
+  -- envelope decodes to a table whose `.result` is vim.NIL — truthy in Lua, so
+  -- returning it would make callers' `res and res.foo` index a userdata and
+  -- throw. Normalize both to nil; every caller already treats nil as absent.
+  if not (ok and type(decoded) == 'table') or decoded.result == vim.NIL then
+    return nil
+  end
+  return decoded.result
 end
 
 ---@return boolean
@@ -92,14 +100,6 @@ function M.next_name(tool)
   return tool .. '_' .. i
 end
 
---- Clone slot name: slot 1 is the base, slot n>1 is `base_n`.
----@param base string
----@param n integer
----@return string
-function M.slot_name(base, n)
-  return n <= 1 and base or (base .. '_' .. n)
-end
-
 --- Find-or-create the dedicated workspace that hosts herd agents (kept off the
 --- user's project workspaces/tabs). Matched by label. Returns its id, or nil.
 ---@param label string
@@ -162,6 +162,25 @@ function M.focused_workspace_label(exclude)
   return nil
 end
 
+--- Build `agent start` argv: base flags + `placement` (the flags that position
+--- the agent — `{'--tab', id}`, `{'--workspace', id}`, or `{}` for the default
+--- workspace) + one `--env` per `def.env` entry + `-- <cmd>`.
+---@param name string unique agent name
+---@param cwd string
+---@param def herd.Tool
+---@param placement string[]
+---@return string[]
+local function start_args(name, cwd, def, placement)
+  local args = { 'agent', 'start', name, '--cwd', cwd, '--no-focus' }
+  vim.list_extend(args, placement)
+  for k, v in pairs(def.env or {}) do
+    vim.list_extend(args, { '--env', ('%s=%s'):format(k, tostring(v)) })
+  end
+  args[#args + 1] = '--'
+  vim.list_extend(args, def.cmd)
+  return args
+end
+
 --- Spawn an agent in the herdr server, placed in `workspace` (off nvim's view)
 --- when given. When `tab_label` is also given the agent gets its own labelled
 --- tab in that workspace, so the herdr sidebar reads "<workspace> · <project>"
@@ -179,18 +198,8 @@ function M.spawn(name, cwd, def, workspace, tab_label)
     local res = M.api({ 'tab', 'create', '--workspace', workspace, '--no-focus', '--cwd', cwd, '--label', tab_label })
     tab = res and res.tab and res.tab.tab_id
   end
-  local args = { 'agent', 'start', name, '--cwd', cwd, '--no-focus' }
-  if tab then
-    vim.list_extend(args, { '--tab', tab })
-  elseif workspace then
-    vim.list_extend(args, { '--workspace', workspace })
-  end
-  for k, v in pairs(def.env or {}) do
-    vim.list_extend(args, { '--env', ('%s=%s'):format(k, tostring(v)) })
-  end
-  args[#args + 1] = '--'
-  vim.list_extend(args, def.cmd)
-  local started = M.api(args)
+  local placement = tab and { '--tab', tab } or workspace and { '--workspace', workspace } or {}
+  local started = M.api(start_args(name, cwd, def, placement))
   local agent = started and started.agent
   -- `tab create` leaves an empty initial pane, so `agent start --tab` lands the
   -- agent as a *second* pane (a split). Close that spare pane so the agent is the
@@ -267,13 +276,7 @@ function M.spawn_native(name, cwd, def, project)
     return nil -- error already surfaced by Herdr.run; no safe fallback placement
   end
   local spare_pane = created.root_pane and created.root_pane.pane_id
-  local args = { 'agent', 'start', name, '--cwd', cwd, '--tab', tab, '--no-focus' }
-  for k, v in pairs(def.env or {}) do
-    vim.list_extend(args, { '--env', ('%s=%s'):format(k, tostring(v)) })
-  end
-  args[#args + 1] = '--'
-  vim.list_extend(args, def.cmd)
-  local started = M.api(args)
+  local started = M.api(start_args(name, cwd, def, { '--tab', tab }))
   local agent = started and started.agent
   if agent then
     agent.tab_id = tab

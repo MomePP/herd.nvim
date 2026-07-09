@@ -35,6 +35,12 @@ describe('herd.config', function()
     assert.are.equal('<leader>\\', c.keys.toggle) -- untouched default
   end)
 
+  it('a partial win.border override replaces the default list (no index-merge)', function()
+    local c = Config.setup({ win = { border = { '│' } } })
+    assert.are.same({ '│' }, c.win.border) -- not spliced into the 8-element default
+    assert.are.equal(1, c.win.width) -- sibling win defaults still apply
+  end)
+
   it('mode can be overridden to native', function()
     local c = Config.setup({ mode = 'native' })
     assert.are.equal('native', c.mode)
