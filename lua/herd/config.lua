@@ -49,10 +49,6 @@ local M = {}
 ---@field reload boolean  true (default) runs `checktime` when nvim regains
 ---                    focus (and, in float mode, on leaving an agent float) so
 ---                    buffers the agent edited reload instead of going stale.
----@field status_poll boolean  false (default). true starts a background poll of
----                    this project's agent status for `require('herd').status()`
----                    / `statusline()` to render in your statusline.
----@field status_interval_ms integer  poll interval when status_poll is on (2000).
 
 ---@type herd.Config
 local defaults = {
@@ -66,8 +62,6 @@ local defaults = {
     context = true,
   },
   reload = true, -- checktime on return so agent-edited buffers refresh
-  status_poll = false, -- opt-in: background-poll agent status for the statusline
-  status_interval_ms = 2000, -- poll interval when status_poll is on
   keys = {
     -- leader-doubled scheme: <leader>\ (leader is '\' → a double-tap) drives the
     -- active agent across modes; s/S open the pickers. In native mode the herdr

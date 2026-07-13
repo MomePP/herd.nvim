@@ -27,9 +27,9 @@ independent, individually-shippable increments:
    `path:line` references, populate the quickfix list, and jump to the first.
 4. **Send diagnostics** — push the current buffer's LSP diagnostics to the
    agent as text ("here are my errors, fix them").
-5. **Linked-agent state in the statusline** — expose this project's agent
-   status (working / blocked / idle) as a cached value the user renders in
-   their statusline/winbar, so they know when to flip over without leaving nvim.
+5. ~~**Linked-agent state in the statusline**~~ — **DROPPED.** Implemented then
+   removed: redundant with herdr's own sidebar, which already shows each agent's
+   status, and the background poll wasn't worth it for a second copy.
 6. **Resurrect the editor host on return** — the user's normal flow is to *quit
    nvim to the shell* (the herdr pane and its tab persist as an idle shell)
    while the agent keeps running. The `Ctrl-a \` return gesture detects whether
@@ -138,16 +138,11 @@ the resolved tab**, not tab existence.
 - **Native mode only:** float mode has no herdr pane for the host; `herd-return`
   is already native-only. Out of scope for float.
 
-### 5. Linked-agent state in the statusline
-Calling the herdr CLI on every statusline redraw is far too expensive (a
-`vim.system` spawn per redraw). Introduce a cache refreshed on a `vim.uv` timer
-(interval configurable, default ~2s) plus on `BufEnter`/`FocusGained`.
-`require('herd').status()` returns `{ name, status } | nil` for the current
-cwd's agent (from `Herdr.agents(cwd)[…].status`); `require('herd').statusline()`
-returns a short formatted string with an icon. The poller only starts when
-opted in.
-- Config: `status_poll` — `false` (default) / `true`, `status_interval_ms`.
-- Heaviest, most optional; ship last.
+### 5. Linked-agent state in the statusline — DROPPED
+Was implemented (cached `Herdr.agents(cwd)` status behind a `vim.uv` poll,
+`status()` / `statusline()`, opt-in `status_poll`) then removed: **redundant
+with herdr's sidebar**, which already surfaces each agent's status. A second,
+poll-backed copy inside nvim wasn't worth the background CLI cost.
 
 ## Risks / tradeoffs
 - **#1 default-on** changes what the agent receives for existing users. Mitigated
@@ -157,8 +152,6 @@ opted in.
   is standard nvim behavior, not a regression.
 - **#3** path parsing is heuristic; the `stat`-must-exist filter is the guard
   against garbage quickfix entries.
-- **#5** adds a background timer + periodic CLI spawn; strictly opt-in for that
-  reason, and cheap (one `agent list` every couple seconds only while enabled).
 - **#6** prompts (never auto-spawns) on a keypress; opt-in via `--resurrect`,
   native-only. It only prompts when nvim is confirmed dead in the resolved tab,
   and reuses the existing pane — worst case if `HERD_EDITOR` is wrong: a failed
@@ -168,6 +161,6 @@ opted in.
 ## Success criteria
 Each feature: unit tests green for its pure logic, `:checkhealth herd` still
 clean, and a manual end-to-end check (send with context lands a fenced block in
-the agent; edit-from-agent then return reloads the buffer; `:Herd goto` opens a
-referenced file; `:Herd diagnostics` delivers errors; `status()` reflects a
-blocked agent).
+the agent; edit-from-agent then return reloads the buffer; `:Herd jump` opens a
+referenced file; `:Herd diagnostics` delivers errors; `--resurrect` prompts when
+nvim was quit).

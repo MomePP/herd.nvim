@@ -66,19 +66,11 @@ stubbed as in `tests/herdr_spec.lua`/`tests/init_spec.lua`.
    → verify: stub `agent_read` returning fixture output; assert qflist contents
    and `cfirst`; empty → notify.
 
-## Phase 5 — Linked-agent state in statusline (#5)  ·  heaviest, opt-in
+## Phase 5 — Linked-agent state in statusline (#5)  ·  DROPPED
 
-1. Add a cache module: `vim.uv` timer (interval `status_interval_ms`, default
-   2000) + `BufEnter`/`FocusGained` refresh, storing `Herdr.agents(cwd)` status
-   for the current cwd. Timer starts only when `Config.get().status_poll`.
-   → verify: stub the clock/timer; assert refresh updates cache, and no timer
-   when `status_poll = false`.
-2. Add `M.status()` → `{ name, status } | nil`, and `M.statusline()` → short
-   iconed string.
-   → verify: unit test both against a seeded cache.
-3. Config defaults + README: `status_poll = false`, `status_interval_ms = 2000`.
-   Document a lualine/statusline snippet.
-   → verify: `config_spec`; `:checkhealth herd` clean.
+Implemented then removed — redundant with herdr's sidebar (which already shows
+each agent's status), and a poll-backed second copy inside nvim wasn't worth the
+background CLI cost.
 
 ## Phase 6 — Resurrect the editor host on return (#6)  ·  native mode, opt-in
 
