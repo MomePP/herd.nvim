@@ -118,6 +118,82 @@ describe('herd init', function()
     assert.are.equal('RAW', sent.text)
   end)
 
+  it('format_diagnostics lists entries under a file header', function()
+    local out = Herd.format_diagnostics('src/a.lua', {
+      { lnum = 9, col = 4, severity = 1, message = 'undefined global', source = 'lua_ls' },
+      { lnum = 11, col = 0, severity = 2, message = 'unused' },
+    })
+    assert.are.equal(
+      'Diagnostics for src/a.lua:\n10:5 [ERROR] undefined global (lua_ls)\n12:1 [WARN] unused',
+      out
+    )
+  end)
+
+  it('format_diagnostics collapses newlines in a message to one line per entry', function()
+    local out = Herd.format_diagnostics('a.lua', {
+      { lnum = 0, col = 0, severity = 1, message = 'expected X\nfound Y', source = 's' },
+    })
+    assert.are.equal('Diagnostics for a.lua:\n1:1 [ERROR] expected X found Y (s)', out)
+  end)
+
+  it('diagnostics notifies and does not send when the buffer is clean', function()
+    Herd.setup({})
+    local saved_get, saved_notify = vim.diagnostic.get, vim.notify
+    local Herdr = require('herd.herdr')
+    local saved_send = Herdr.agent_send
+    vim.diagnostic.get = function() return {} end
+    local sent = false
+    Herdr.agent_send = function() sent = true end
+    local notified
+    vim.notify = function(m) notified = m end
+
+    Herd.diagnostics()
+
+    vim.diagnostic.get, vim.notify, Herdr.agent_send = saved_get, saved_notify, saved_send
+    assert.is_false(sent)
+    assert.is_truthy(notified and notified:find('no diagnostics', 1, true))
+  end)
+
+  it('diagnostics sends the formatted list to the active agent', function()
+    Herd.setup({})
+    local Herdr = require('herd.herdr')
+    local Target = require('herd.target')
+    local Terminal = require('herd.terminal')
+    local saved = {
+      get = vim.diagnostic.get, fmt = Herd.format_diagnostics, notify = vim.notify,
+      server = Herdr.server_running, agents = Herdr.agents, send = Herdr.agent_send,
+      current = Target.current, open = Terminal.open,
+    }
+    vim.diagnostic.get = function() return { { lnum = 0, col = 0, severity = 1, message = 'boom', source = 'x' } } end
+    Herd.format_diagnostics = function(_, d) return 'DIAG(' .. #d .. ')' end
+    Herdr.server_running = function() return true end
+    Herdr.agents = function() return {} end
+    Target.current = function() return { name = 'claude', pane_id = 'p1', cwd = vim.fn.getcwd() } end
+    local sent
+    Herdr.agent_send = function(_, text) sent = text end
+    Terminal.open = function() end
+    vim.notify = function() end
+
+    local ok, err = pcall(Herd.diagnostics)
+
+    vim.diagnostic.get, Herd.format_diagnostics, vim.notify = saved.get, saved.fmt, saved.notify
+    Herdr.server_running, Herdr.agents, Herdr.agent_send = saved.server, saved.agents, saved.send
+    Target.current, Terminal.open = saved.current, saved.open
+
+    assert.is_true(ok, 'diagnostics crashed: ' .. tostring(err))
+    assert.are.equal('DIAG(1)', sent)
+  end)
+
+  it(':Herd diagnostics dispatches to M.diagnostics', function()
+    Herd.setup({})
+    local saved = Herd.diagnostics
+    local called = false
+    Herd.diagnostics = function() called = true end
+    vim.cmd('Herd diagnostics')
+    Herd.diagnostics = saved
+    assert.is_true(called)
+  end)
+
   it('spawn errors cleanly on an unknown tool', function()
     Herd.setup({ tools = {} })
     local notified

@@ -174,6 +174,22 @@ function M.format_context(ctx)
   return ('%s:%s:\n```%s\n%s\n```'):format(ctx.path, lines, ctx.ft, ctx.text)
 end
 
+--- Deliver `text` to this project's active agent (no Enter) and land in it to
+--- review/submit. Shared by send and diagnostics.
+---@param text string
+local function deliver(text)
+  if not ensure_server() then
+    return
+  end
+  local a = Target.current(Herdr.agents(), cwd(), M.target)
+  if not a then
+    return vim.notify('herd: no agents running in this project', vim.log.levels.WARN)
+  end
+  Herdr.agent_send(a.pane_id, text) -- target the unambiguous pane, not the name
+  show(a) -- land in the agent to submit
+  vim.notify('herd → ' .. a.name)
+end
+
 --- Send the visual selection to the active agent (no Enter — review then
 --- submit). With `send.context` (default on) the selection is wrapped with its
 --- file path and line range so the agent knows where the code lives.
@@ -182,13 +198,6 @@ function M.send()
   vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'nx', false)
   if sel.text == '' then
     return
-  end
-  if not ensure_server() then
-    return
-  end
-  local a = Target.current(Herdr.agents(), cwd(), M.target)
-  if not a then
-    return vim.notify('herd: no agents running in this project', vim.log.levels.WARN)
   end
   local payload = sel.text
   local sendcfg = Config.get().send
@@ -205,9 +214,39 @@ function M.send()
     }
     payload = type(ctxopt) == 'function' and ctxopt(ctx) or M.format_context(ctx)
   end
-  Herdr.agent_send(a.pane_id, payload) -- target the unambiguous pane, not the name
-  show(a) -- land in the agent to submit
-  vim.notify('herd → ' .. a.name)
+  deliver(payload)
+end
+
+--- vim.diagnostic.severity is 1..4 (ERROR, WARN, INFO, HINT).
+local DIAG_SEVERITY = { 'ERROR', 'WARN', 'INFO', 'HINT' }
+
+--- Format a buffer's diagnostics as a text block for the agent: a file header
+--- then `line:col [SEVERITY] message (source)` per entry. Public so a caller can
+--- reuse the formatting.
+---@param path string
+---@param diags vim.Diagnostic[]
+---@return string
+function M.format_diagnostics(path, diags)
+  local lines = { 'Diagnostics for ' .. path .. ':' }
+  for _, d in ipairs(diags) do
+    local sev = DIAG_SEVERITY[d.severity] or '?'
+    local src = d.source and (' (' .. d.source .. ')') or ''
+    -- collapse multi-line messages so each diagnostic stays on one line
+    local msg = d.message:gsub('%s*\n%s*', ' ')
+    lines[#lines + 1] = ('%d:%d [%s] %s%s'):format(d.lnum + 1, d.col + 1, sev, msg, src)
+  end
+  return table.concat(lines, '\n')
+end
+
+--- Send the current buffer's LSP diagnostics to the active agent (no Enter —
+--- review then submit). No-op with a notice when the buffer is clean.
+function M.diagnostics()
+  local diags = vim.diagnostic.get(0)
+  if #diags == 0 then
+    return vim.notify('herd: no diagnostics in this buffer', vim.log.levels.INFO)
+  end
+  local path = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(0), ':.')
+  deliver(M.format_diagnostics(path, diags))
 end
 
 --- Surface the agent pool. Float mode: focus the dedicated herd workspace in
@@ -334,7 +373,7 @@ function M.setup(opts)
 
   vim.api.nvim_create_user_command('Herd', function(a)
     local sub = a.args ~= '' and a.args or 'toggle'
-    local fn = ({ toggle = M.toggle, select = M.select, send = M.send, dashboard = M.dashboard })[sub]
+    local fn = ({ toggle = M.toggle, select = M.select, send = M.send, dashboard = M.dashboard, diagnostics = M.diagnostics })[sub]
     if fn then
       fn()
     elseif sub:match('^spawn%s') then
@@ -349,7 +388,7 @@ function M.setup(opts)
     complete = function(arg_lead, cmd_line)
       -- after `spawn `, complete configured tool names; otherwise subcommands
       local cands = cmd_line:match('^%S+%s+spawn%s') and vim.tbl_keys(Config.get().tools)
-        or { 'toggle', 'select', 'send', 'dashboard', 'spawn' }
+        or { 'toggle', 'select', 'send', 'dashboard', 'diagnostics', 'spawn' }
       return vim.tbl_filter(function(c)
         return vim.startswith(c, arg_lead)
       end, cands)
