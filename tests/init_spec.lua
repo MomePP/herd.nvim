@@ -269,6 +269,50 @@ describe('herd init', function()
     assert.is_true(called)
   end)
 
+  it('status and statusline reflect the refreshed agent for this cwd', function()
+    Herd.setup({})
+    local Herdr = require('herd.herdr')
+    local saved = Herdr.agents
+    Herdr.agents = function()
+      return { { name = 'claude', pane_id = 'p1', status = 'blocked', cwd = vim.fn.getcwd() } }
+    end
+    Herd.refresh_status()
+    Herdr.agents = saved
+
+    assert.are.same({ name = 'claude', status = 'blocked' }, Herd.status())
+    assert.are.equal('◆ claude', Herd.statusline())
+  end)
+
+  it('status is nil and statusline empty when no agent runs in this cwd', function()
+    Herd.setup({})
+    local Herdr = require('herd.herdr')
+    local saved = Herdr.agents
+    Herdr.agents = function() return {} end
+    Herd.refresh_status()
+    Herdr.agents = saved
+
+    assert.is_nil(Herd.status())
+    assert.are.equal('', Herd.statusline())
+  end)
+
+  it('status_poll = true registers the herd_status autocmd; default does not', function()
+    pcall(vim.api.nvim_del_augroup_by_name, 'herd_status')
+    Herd.setup({}) -- default off
+    assert.has_error(function()
+      vim.api.nvim_get_autocmds({ group = 'herd_status' })
+    end)
+
+    local Herdr = require('herd.herdr')
+    local saved = Herdr.agents
+    Herdr.agents = function() return {} end -- keep any timer fire harmless
+    Herd.setup({ status_poll = true })
+    assert.is_true(#vim.api.nvim_get_autocmds({ group = 'herd_status' }) > 0)
+
+    Herd.stop_status()
+    pcall(vim.api.nvim_del_augroup_by_name, 'herd_status')
+    Herdr.agents = saved
+  end)
+
   it('spawn errors cleanly on an unknown tool', function()
     Herd.setup({ tools = {} })
     local notified

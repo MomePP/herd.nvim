@@ -80,6 +80,7 @@ quickfix list, and jumps to the first — neither has a default keymap; bind
 - ✂️ **Send selection** — visual `<leader>\` pushes the selection to the active agent (no Enter — review, then submit). By default it's wrapped with `path:line-range` + a filetype fence so the agent sees *where* the code lives (`send.context`).
 - 🩹 **Send diagnostics** — `:Herd diagnostics` pushes the current buffer's LSP diagnostics to the active agent ("here are my errors, fix them"). No default keymap.
 - 🎯 **Jump to references** — `:Herd jump` scans the agent's recent output for `path:line` references, drops them in the quickfix list, and jumps to the first. No default keymap.
+- 📟 **Statusline state** — with `status_poll = true`, `require('herd').statusline()` returns `<icon> <name>` (`●` working / `◆` blocked / `○` idle) for this project's agent, so you see when it needs you without leaving the editor. `require('herd').status()` gives the raw `{ name, status }` for custom rendering.
 - 🗂 **Grouped picker** — `<leader>s` lists running agents **for the current project** and configured tools. Use the dashboard for a cross-project view.
 - 📊 **Dashboard** — `<leader>S` (or `:Herd dashboard`). Float mode focuses the dedicated herd.nvim workspace; native mode opens the global cross-project agent picker.
 - 💾 **Persistence** — agents survive closing the float and `:q`; herdr owns the process and rediscovers them via `herdr agent list`.
@@ -126,6 +127,11 @@ require('herd').setup({
                   -- leaving an agent float) so buffers the agent edited reload
                   -- instead of going stale. Respects 'autoread'. false disables.
 
+  status_poll = false,       -- opt-in: background-poll this project's agent status so
+                             -- `require('herd').status()` / `statusline()` can render it
+                             -- (see the statusline snippet below). Off by default.
+  status_interval_ms = 2000, -- poll interval when status_poll is on
+
   -- Keymaps. Set any to `false` to disable it.
   keys = {
     toggle    = '<leader>\\', -- (normal)   toggle this cwd's agent float; count = slot
@@ -153,6 +159,20 @@ require('herd').setup({
 
 })
 ```
+
+### Statusline
+
+With `status_poll = true`, drop the agent's state into your statusline. lualine:
+
+```lua
+require('lualine').setup({
+  sections = { lualine_x = { require('herd').statusline } },
+})
+```
+
+`statusline()` returns `● claude` / `◆ claude` / `○ claude` (working / blocked /
+idle) for this project's agent, or `''` when none runs here. Prefer your own
+rendering? `require('herd').status()` returns `{ name, status }` (or `nil`).
 
 ## 🧭 Native mode
 

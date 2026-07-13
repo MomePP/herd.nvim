@@ -290,6 +290,50 @@ function M.jump()
   vim.cmd('cfirst')
 end
 
+-- Cached snapshot of the live agent list so statusline() (called on every
+-- redraw) never shells out; the poll timer / FocusGained refresh it.
+local status_cache = { agents = {} }
+local status_timer
+
+--- Refresh the cached agent snapshot (one `herdr agent list`). Public so a
+--- statusline or the user can force an update.
+function M.refresh_status()
+  status_cache.agents = Herdr.agents()
+end
+
+--- Stop the background status poll (idempotent). Exposed for teardown.
+local function stop_status()
+  if status_timer then
+    status_timer:stop()
+    if not status_timer:is_closing() then
+      status_timer:close()
+    end
+    status_timer = nil
+  end
+end
+M.stop_status = stop_status
+
+--- This project's agent status from the cache, or nil. Cheap (no CLI): filters
+--- the cached snapshot by cwd, so switching buffers reflects immediately.
+---@return { name: string, status: string }?
+function M.status()
+  local a = Target.current(status_cache.agents, cwd(), M.target)
+  return a and { name = a.name, status = a.status } or nil
+end
+
+local STATUS_ICON = { working = '●', blocked = '◆', idle = '○' }
+
+--- Short `<icon> <name>` string for this project's agent, or '' when none.
+--- Apply your own statusline highlight around it.
+---@return string
+function M.statusline()
+  local s = M.status()
+  if not s then
+    return ''
+  end
+  return (STATUS_ICON[s.status] or '·') .. ' ' .. s.name
+end
+
 --- Surface the agent pool. Float mode: focus the dedicated herd workspace in
 --- the herdr client. Native mode: agents live in real project workspaces (the
 --- dedicated workspace is unused), so open a global picker over every running
@@ -410,6 +454,21 @@ function M.setup(opts)
         end,
       })
     end
+  end
+
+  -- Status poll (opt-in): keep the cached agent snapshot fresh for status() /
+  -- statusline(). A timer covers agents working in the background; FocusGained
+  -- refreshes the moment you return to nvim. Always stop a prior timer first so
+  -- re-running setup() is idempotent.
+  stop_status()
+  if cfg.status_poll then
+    local interval = cfg.status_interval_ms or 2000
+    status_timer = (vim.uv or vim.loop).new_timer()
+    status_timer:start(interval, interval, vim.schedule_wrap(M.refresh_status))
+    vim.api.nvim_create_autocmd('FocusGained', {
+      group = vim.api.nvim_create_augroup('herd_status', { clear = true }),
+      callback = M.refresh_status,
+    })
   end
 
   vim.api.nvim_create_user_command('Herd', function(a)

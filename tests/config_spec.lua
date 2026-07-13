@@ -66,4 +66,13 @@ describe('herd.config', function()
     assert.is_false(Config.setup({ reload = false }).reload)
     Config.options = nil
   end)
+
+  it('status polling is off by default with a 2s interval, and can be enabled', function()
+    local c = Config.setup({})
+    assert.is_false(c.status_poll)
+    assert.are.equal(2000, c.status_interval_ms)
+    Config.options = nil
+    assert.is_true(Config.setup({ status_poll = true }).status_poll)
+    Config.options = nil
+  end)
 end)
