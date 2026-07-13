@@ -38,6 +38,15 @@ local function api(args)
   return (ok and type(decoded) == 'table') and decoded.result or nil
 end
 
+-- `--resurrect` (opt-in): when the origin tab's editor pane holds no live nvim
+-- (nvim was quit to an idle shell), offer to relaunch it in place.
+local resurrect = false
+for _, v in ipairs(arg) do
+  if v == '--resurrect' then
+    resurrect = true
+  end
+end
+
 local tabs = api({ 'tab', 'list' })
 local panes = api({ 'pane', 'list' })
 local agents = api({ 'agent', 'list' })
@@ -46,8 +55,19 @@ if not (tabs and panes and agents) then
 end
 
 local tab_id, reason = Origin.resolve(tabs.tabs or {}, panes.panes or {}, agents.agents or {})
-if tab_id then
-  api({ 'tab', 'focus', tab_id })
-else
+if not tab_id then
   api({ 'notification', 'show', 'herd: ' .. (reason or 'no origin editor here') })
+  return
+end
+
+api({ 'tab', 'focus', tab_id })
+
+if resurrect then
+  local pane_id = Origin.editor_pane(panes.panes or {}, tab_id)
+  if pane_id then
+    local info = api({ 'pane', 'process-info', '--pane', pane_id })
+    if not Origin.has_nvim(info and info.process_info) then
+      api({ 'pane', 'run', pane_id, root .. '/bin/herd-resurrect.sh' })
+    end
+  end
 end

@@ -250,6 +250,28 @@ your editor panes. When nothing matches (not a herd tab, editor gone) it shows
 a herdr notification and does nothing — herdr has no CLI to re-dispatch the
 key's default action.
 
+#### Resurrect the editor (`--resurrect`)
+
+If you *quit nvim* but leave the agent running, the editor tab stays behind as
+an idle shell — so `herd-return` still focuses it, but there's no editor there.
+Add `--resurrect` to the binding to have it offer to relaunch nvim in that pane:
+
+```toml
+[[keys.command]]
+key = 'prefix+\'
+type = "shell"
+command = "nvim -l /path/to/herd.nvim/bin/herd-return.lua --resurrect"
+```
+
+On return, herd-return checks whether nvim is actually live in the origin tab
+(via `herdr pane process-info`). If it is, it just focuses it (silent, as
+before). If not, it focuses the tab and runs a prompt in the shell pane —
+`herd: no nvim here — resurrect? [Y/n]` — where **y** relaunches the editor in
+place and **n** leaves you at the shell. Native mode only (float mode has no
+herdr pane to relaunch into). `HERD_EDITOR` overrides the launched command
+(e.g. `HERD_EDITOR="nvim -S Session.vim"` or a session-restoring wrapper); nvim
+runs as a child of the shell, so quitting it returns you to the shell as usual.
+
 If you'd rather get back with plain herdr navigation, these work too — bind
 them in `config.toml`'s `[keys]` section:
 
