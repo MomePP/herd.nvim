@@ -294,6 +294,27 @@ describe('herd init', function()
     end)
   end)
 
+  it('reload registers a herd_reload autocmd that runs checktime on FocusGained', function()
+    pcall(vim.api.nvim_del_augroup_by_name, 'herd_reload')
+    Herd.setup({}) -- reload defaults on
+
+    local saved_cmd = vim.cmd
+    local ran
+    vim.cmd = function(c) ran = c end
+    vim.api.nvim_exec_autocmds('FocusGained', { group = 'herd_reload' })
+    vim.cmd = saved_cmd
+
+    assert.are.equal('checktime', ran)
+  end)
+
+  it('reload = false registers no herd_reload autocmds', function()
+    pcall(vim.api.nvim_del_augroup_by_name, 'herd_reload')
+    Herd.setup({ reload = false })
+    assert.has_error(function()
+      vim.api.nvim_get_autocmds({ group = 'herd_reload' })
+    end)
+  end)
+
   it('float mode still registers the TermOpen and mouse-passthrough autocmds', function()
     pcall(vim.api.nvim_del_augroup_by_name, 'herd_term')
     pcall(vim.api.nvim_del_augroup_by_name, 'herd_mouse')

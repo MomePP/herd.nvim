@@ -116,6 +116,10 @@ require('herd').setup({
     context = true,
   },
 
+  reload = true,  -- run `checktime` when nvim regains focus (and, in float mode, on
+                  -- leaving an agent float) so buffers the agent edited reload
+                  -- instead of going stale. Respects 'autoread'. false disables.
+
   -- Keymaps. Set any to `false` to disable it.
   keys = {
     toggle    = '<leader>\\', -- (normal)   toggle this cwd's agent float; count = slot

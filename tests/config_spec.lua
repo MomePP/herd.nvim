@@ -59,4 +59,11 @@ describe('herd.config', function()
     assert.is_false(Config.setup({ send = { context = false } }).send.context)
     Config.options = nil
   end)
+
+  it('reload defaults to true and can be disabled', function()
+    assert.is_true(Config.setup({}).reload)
+    Config.options = nil
+    assert.is_false(Config.setup({ reload = false }).reload)
+    Config.options = nil
+  end)
 end)

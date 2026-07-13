@@ -310,6 +310,28 @@ function M.setup(opts)
     })
   end
 
+  -- Auto-reload: the agent (herdr owns its PTY) edits files outside nvim. Run
+  -- `checktime` when nvim regains focus — and, in float mode, when leaving an
+  -- agent float back to a normal buffer — so those buffers refresh instead of
+  -- going stale (or prompting mid-edit). Respects 'autoread' like any checktime.
+  if cfg.reload ~= false then
+    local grp = vim.api.nvim_create_augroup('herd_reload', { clear = true })
+    local function refresh()
+      vim.cmd('checktime')
+    end
+    vim.api.nvim_create_autocmd('FocusGained', { group = grp, callback = refresh })
+    if cfg.mode == 'float' then
+      vim.api.nvim_create_autocmd('BufLeave', {
+        group = grp,
+        callback = function(ev)
+          if Terminal.is_float_buf(ev.buf) then
+            vim.schedule(refresh) -- after the buffer switch settles
+          end
+        end,
+      })
+    end
+  end
+
   vim.api.nvim_create_user_command('Herd', function(a)
     local sub = a.args ~= '' and a.args or 'toggle'
     local fn = ({ toggle = M.toggle, select = M.select, send = M.send, dashboard = M.dashboard })[sub]
