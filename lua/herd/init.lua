@@ -143,24 +143,44 @@ function M.select()
   end)
 end
 
---- The current visual selection as one string (getregion, nvim >= 0.10).
----@return string
-local function selection()
+--- The current visual selection: its text plus 1-based line range (getregion,
+--- nvim >= 0.10). Seam: tests replace this to drive M.send without a live
+--- selection.
+---@return { text: string, sline: integer, eline: integer }
+function M.selection()
   local mode = vim.fn.mode()
   if not mode:match('^[vV\22]$') then
     mode = vim.fn.visualmode()
   end
   if mode == '' then
-    return ''
+    return { text = '', sline = 0, eline = 0 }
   end
-  return table.concat(vim.fn.getregion(vim.fn.getpos('v'), vim.fn.getpos('.'), { type = mode }), '\n')
+  local vpos, cpos = vim.fn.getpos('v'), vim.fn.getpos('.')
+  local text = table.concat(vim.fn.getregion(vpos, cpos, { type = mode }), '\n')
+  local sline, eline = vpos[2], cpos[2]
+  if sline > eline then
+    sline, eline = eline, sline
+  end
+  return { text = text, sline = sline, eline = eline }
 end
 
---- Send the visual selection to the active agent (no Enter — review then submit).
+--- Wrap a selection as a location-prefixed, filetype-fenced block —
+--- `path:sline-eline:` then a ``` fence — so the agent knows where the code
+--- lives. Public so a user `send.context` function can reuse it.
+---@param ctx { path: string, ft: string, sline: integer, eline: integer, text: string }
+---@return string
+function M.format_context(ctx)
+  local lines = ctx.sline == ctx.eline and tostring(ctx.sline) or ('%d-%d'):format(ctx.sline, ctx.eline)
+  return ('%s:%s:\n```%s\n%s\n```'):format(ctx.path, lines, ctx.ft, ctx.text)
+end
+
+--- Send the visual selection to the active agent (no Enter — review then
+--- submit). With `send.context` (default on) the selection is wrapped with its
+--- file path and line range so the agent knows where the code lives.
 function M.send()
-  local text = selection()
+  local sel = M.selection()
   vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'nx', false)
-  if text == '' then
+  if sel.text == '' then
     return
   end
   if not ensure_server() then
@@ -170,7 +190,22 @@ function M.send()
   if not a then
     return vim.notify('herd: no agents running in this project', vim.log.levels.WARN)
   end
-  Herdr.agent_send(a.pane_id, text) -- target the unambiguous pane, not the name
+  local payload = sel.text
+  local sendcfg = Config.get().send
+  -- `send` may be set to a non-table (e.g. `send = false`) to disable wrapping,
+  -- mirroring the `keys.x = false` idiom — guard before indexing `.context`.
+  local ctxopt = type(sendcfg) == 'table' and sendcfg.context
+  if ctxopt then
+    local ctx = {
+      path = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(0), ':.'),
+      ft = vim.bo.filetype,
+      sline = sel.sline,
+      eline = sel.eline,
+      text = sel.text,
+    }
+    payload = type(ctxopt) == 'function' and ctxopt(ctx) or M.format_context(ctx)
+  end
+  Herdr.agent_send(a.pane_id, payload) -- target the unambiguous pane, not the name
   show(a) -- land in the agent to submit
   vim.notify('herd → ' .. a.name)
 end

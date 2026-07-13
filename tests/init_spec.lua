@@ -14,6 +14,110 @@ describe('herd init', function()
     end)
   end)
 
+  it('format_context wraps a multi-line selection with path:range and a fence', function()
+    local out = Herd.format_context({ path = 'src/a.lua', ft = 'lua', sline = 10, eline = 12, text = 'x = 1' })
+    assert.are.equal('src/a.lua:10-12:\n```lua\nx = 1\n```', out)
+  end)
+
+  it('format_context uses a single line number when the selection is one line', function()
+    local out = Herd.format_context({ path = 'src/a.lua', ft = 'lua', sline = 5, eline = 5, text = 'y = 2' })
+    assert.are.equal('src/a.lua:5:\n```lua\ny = 2\n```', out)
+  end)
+
+  it('format_context omits the fence language when filetype is empty', function()
+    local out = Herd.format_context({ path = 'notes', ft = '', sline = 1, eline = 1, text = 'hi' })
+    assert.are.equal('notes:1:\n```\nhi\n```', out)
+  end)
+
+  it('send wraps the selection through format_context when send.context is on', function()
+    Herd.setup({}) -- send.context defaults on
+    local Herdr = require('herd.herdr')
+    local Target = require('herd.target')
+    local Terminal = require('herd.terminal')
+    local saved = {
+      sel = Herd.selection, fmt = Herd.format_context,
+      server = Herdr.server_running, agents = Herdr.agents, send = Herdr.agent_send,
+      current = Target.current, open = Terminal.open, notify = vim.notify,
+    }
+    Herd.selection = function() return { text = 'RAW', sline = 3, eline = 4 } end
+    Herd.format_context = function(ctx) return 'WRAPPED(' .. ctx.text .. ')' end
+    Herdr.server_running = function() return true end
+    Herdr.agents = function() return {} end
+    Target.current = function() return { name = 'claude', pane_id = 'p1', cwd = vim.fn.getcwd() } end
+    local sent
+    Herdr.agent_send = function(pane, text) sent = { pane = pane, text = text } end
+    Terminal.open = function() end
+    vim.notify = function() end
+
+    Herd.send()
+
+    Herd.selection, Herd.format_context = saved.sel, saved.fmt
+    Herdr.server_running, Herdr.agents, Herdr.agent_send = saved.server, saved.agents, saved.send
+    Target.current, Terminal.open, vim.notify = saved.current, saved.open, saved.notify
+
+    assert.are.equal('p1', sent.pane)
+    assert.are.equal('WRAPPED(RAW)', sent.text)
+  end)
+
+  it('send passes the raw selection when send.context is false', function()
+    Herd.setup({ send = { context = false } })
+    local Herdr = require('herd.herdr')
+    local Target = require('herd.target')
+    local Terminal = require('herd.terminal')
+    local saved = {
+      sel = Herd.selection,
+      server = Herdr.server_running, agents = Herdr.agents, send = Herdr.agent_send,
+      current = Target.current, open = Terminal.open, notify = vim.notify,
+    }
+    Herd.selection = function() return { text = 'RAW', sline = 3, eline = 4 } end
+    Herdr.server_running = function() return true end
+    Herdr.agents = function() return {} end
+    Target.current = function() return { name = 'claude', pane_id = 'p1', cwd = vim.fn.getcwd() } end
+    local sent
+    Herdr.agent_send = function(pane, text) sent = { pane = pane, text = text } end
+    Terminal.open = function() end
+    vim.notify = function() end
+
+    Herd.send()
+
+    Herd.selection = saved.sel
+    Herdr.server_running, Herdr.agents, Herdr.agent_send = saved.server, saved.agents, saved.send
+    Target.current, Terminal.open, vim.notify = saved.current, saved.open, saved.notify
+
+    assert.are.equal('RAW', sent.text)
+  end)
+
+  it('send does not crash and sends raw when disabled with `send = false`', function()
+    Herd.setup({ send = false }) -- non-table disable idiom, mirroring keys.x = false
+    local Herdr = require('herd.herdr')
+    local Target = require('herd.target')
+    local Terminal = require('herd.terminal')
+    local saved = {
+      sel = Herd.selection,
+      server = Herdr.server_running, agents = Herdr.agents, send = Herdr.agent_send,
+      current = Target.current, open = Terminal.open, notify = vim.notify,
+    }
+    Herd.selection = function() return { text = 'RAW', sline = 3, eline = 4 } end
+    Herdr.server_running = function() return true end
+    Herdr.agents = function() return {} end
+    Target.current = function() return { name = 'claude', pane_id = 'p1', cwd = vim.fn.getcwd() } end
+    local sent
+    Herdr.agent_send = function(pane, text) sent = { pane = pane, text = text } end
+    Terminal.open = function() end
+    vim.notify = function() end
+
+    -- pcall + restore BEFORE asserting so a failure can't leak the stubs into
+    -- later tests (a failed assertion aborts the `it` block mid-way).
+    local ok, err = pcall(Herd.send)
+
+    Herd.selection = saved.sel
+    Herdr.server_running, Herdr.agents, Herdr.agent_send = saved.server, saved.agents, saved.send
+    Target.current, Terminal.open, vim.notify = saved.current, saved.open, saved.notify
+
+    assert.is_true(ok, 'send crashed: ' .. tostring(err))
+    assert.are.equal('RAW', sent.text)
+  end)
+
   it('spawn errors cleanly on an unknown tool', function()
     Herd.setup({ tools = {} })
     local notified

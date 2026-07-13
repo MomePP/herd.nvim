@@ -60,7 +60,7 @@ drag-select)? See [Native mode](#-native-mode) below.
 | Key | Mode | Action |
 | --- | --- | --- |
 | `<leader>\` | normal | Toggle this cwd's agent float. `<count><key>` targets slot N; an **empty slot spawns the inferred tool's next clone** (inferred from current target, first project agent, or sole configured tool — else opens the picker). |
-| `<leader>\` | visual | Send the selection to the active agent (no Enter — the float opens so you can review and submit). |
+| `<leader>\` | visual | Send the selection to the active agent (no Enter — the float opens so you can review and submit). By default the selection is wrapped with its `path:line-range` and a filetype fence so the agent knows where the code lives — see `send.context`. |
 | `<leader>\` | terminal | Hide the float from inside the agent. |
 | `<leader>s` | normal | Grouped picker (**current project only**): switch to a running agent or spawn a configured tool. Rows show `name  [status]`. |
 | `<leader>S` | normal | Dashboard. Float mode focuses the dedicated herd.nvim workspace; native mode opens the global cross-project agent picker. |
@@ -73,7 +73,7 @@ Lua API `require('herd').{toggle,select,send,dashboard,spawn}()`.
 
 - 🚀 **Spawn + fullscreen float** — picker spawns a tool and shows it in a fullscreen nvim float.
 - 🔄 **Toggle** — `<leader>\` (normal) opens/closes this cwd's agent; `count` targets a numbered slot.
-- ✂️ **Send selection** — visual `<leader>\` pushes the selection to the active agent (no Enter — review, then submit).
+- ✂️ **Send selection** — visual `<leader>\` pushes the selection to the active agent (no Enter — review, then submit). By default it's wrapped with `path:line-range` + a filetype fence so the agent sees *where* the code lives (`send.context`).
 - 🗂 **Grouped picker** — `<leader>s` lists running agents **for the current project** and configured tools. Use the dashboard for a cross-project view.
 - 📊 **Dashboard** — `<leader>S` (or `:Herd dashboard`). Float mode focuses the dedicated herd.nvim workspace; native mode opens the global cross-project agent picker.
 - 💾 **Persistence** — agents survive closing the float and `:q`; herdr owns the process and rediscovers them via `herdr agent list`.
@@ -107,6 +107,14 @@ require('herd').setup({
 
   workspace = 'herd.nvim',  -- float mode only: herdr workspace label that hosts spawned agents
                             -- (kept off your project tabs). Native mode uses nvim's own workspace.
+
+  send = {
+    -- Visual send. true (default) wraps the selection as `path:line-range` + a
+    -- filetype-fenced block so the agent knows where the code lives; false
+    -- sends the raw selection; a function(ctx) -> string formats it yourself,
+    -- where ctx = { path, ft, sline, eline, text }.
+    context = true,
+  },
 
   -- Keymaps. Set any to `false` to disable it.
   keys = {
