@@ -66,10 +66,12 @@ drag-select)? See [Native mode](#-native-mode) below.
 | `<leader>S` | normal | Dashboard. Float mode focuses the dedicated herd.nvim workspace; native mode opens the global cross-project agent picker. |
 | `<S-CR>` | terminal | Send a newline (kitty `Esc[13;2u`) to the agent — for multi-line prompts without submitting. |
 
-Also available as `:Herd [toggle|select|send|dashboard|diagnostics]`, `:Herd spawn <tool>`, and the
-Lua API `require('herd').{toggle,select,send,dashboard,diagnostics,spawn}()`.
-`:Herd diagnostics` sends the current buffer's LSP diagnostics to the active agent — no
-default keymap; bind `require('herd').diagnostics` yourself if you want one.
+Also available as `:Herd [toggle|select|send|dashboard|diagnostics|jump]`, `:Herd spawn <tool>`, and the
+Lua API `require('herd').{toggle,select,send,dashboard,diagnostics,jump,spawn}()`.
+`:Herd diagnostics` sends the current buffer's LSP diagnostics to the active agent, and
+`:Herd jump` reads the agent's recent output, collects the `path:line` references into the
+quickfix list, and jumps to the first — neither has a default keymap; bind
+`require('herd').diagnostics` / `require('herd').jump` yourself if you want one.
 
 ## ✨ Features
 
@@ -77,6 +79,7 @@ default keymap; bind `require('herd').diagnostics` yourself if you want one.
 - 🔄 **Toggle** — `<leader>\` (normal) opens/closes this cwd's agent; `count` targets a numbered slot.
 - ✂️ **Send selection** — visual `<leader>\` pushes the selection to the active agent (no Enter — review, then submit). By default it's wrapped with `path:line-range` + a filetype fence so the agent sees *where* the code lives (`send.context`).
 - 🩹 **Send diagnostics** — `:Herd diagnostics` pushes the current buffer's LSP diagnostics to the active agent ("here are my errors, fix them"). No default keymap.
+- 🎯 **Jump to references** — `:Herd jump` scans the agent's recent output for `path:line` references, drops them in the quickfix list, and jumps to the first. No default keymap.
 - 🗂 **Grouped picker** — `<leader>s` lists running agents **for the current project** and configured tools. Use the dashboard for a cross-project view.
 - 📊 **Dashboard** — `<leader>S` (or `:Herd dashboard`). Float mode focuses the dedicated herd.nvim workspace; native mode opens the global cross-project agent picker.
 - 💾 **Persistence** — agents survive closing the float and `:q`; herdr owns the process and rediscovers them via `herdr agent list`.

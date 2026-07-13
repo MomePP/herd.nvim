@@ -249,6 +249,47 @@ function M.diagnostics()
   deliver(M.format_diagnostics(path, diags))
 end
 
+local uv = vim.uv or vim.loop
+
+--- Extract `path:line(:col)?` references from agent output, resolving each
+--- relative to `base` and keeping only those that point at a real file (drops
+--- prose like `10:30`, directories, and dead paths). Deduped. Public for reuse.
+---@param text string
+---@param base string directory to resolve relative paths against
+---@return { filename: string, lnum: integer, col: integer }[]
+function M.parse_refs(text, base)
+  local seen, out = {}, {}
+  for path, lnum, col in text:gmatch('([%w%._/%-]+):(%d+):?(%d*)') do
+    local abs = vim.fs.normalize(path:match('^/') and path or (base .. '/' .. path))
+    local key = abs .. ':' .. lnum .. ':' .. col
+    local st = uv.fs_stat(abs)
+    if not seen[key] and st and st.type == 'file' then
+      seen[key] = true
+      out[#out + 1] = { filename = abs, lnum = tonumber(lnum), col = col ~= '' and tonumber(col) or 1 }
+    end
+  end
+  return out
+end
+
+--- Jump to files the active agent referenced: read its recent output, collect
+--- the `path:line` references into the quickfix list, and jump to the first.
+function M.jump()
+  if not ensure_server() then
+    return
+  end
+  local a = Target.current(Herdr.agents(), cwd(), M.target)
+  if not a then
+    return vim.notify('herd: no agents running in this project', vim.log.levels.WARN)
+  end
+  local text = Herdr.agent_read(a.pane_id, { source = 'recent', lines = 200 })
+  local refs = text and M.parse_refs(text, a.cwd) or {}
+  if #refs == 0 then
+    return vim.notify('herd: no file references in the agent output', vim.log.levels.INFO)
+  end
+  vim.fn.setqflist({}, ' ', { title = 'herd: ' .. a.name, items = refs })
+  vim.cmd('cfirst')
+end
+
 --- Surface the agent pool. Float mode: focus the dedicated herd workspace in
 --- the herdr client. Native mode: agents live in real project workspaces (the
 --- dedicated workspace is unused), so open a global picker over every running
@@ -373,7 +414,7 @@ function M.setup(opts)
 
   vim.api.nvim_create_user_command('Herd', function(a)
     local sub = a.args ~= '' and a.args or 'toggle'
-    local fn = ({ toggle = M.toggle, select = M.select, send = M.send, dashboard = M.dashboard, diagnostics = M.diagnostics })[sub]
+    local fn = ({ toggle = M.toggle, select = M.select, send = M.send, dashboard = M.dashboard, diagnostics = M.diagnostics, jump = M.jump })[sub]
     if fn then
       fn()
     elseif sub:match('^spawn%s') then
@@ -388,7 +429,7 @@ function M.setup(opts)
     complete = function(arg_lead, cmd_line)
       -- after `spawn `, complete configured tool names; otherwise subcommands
       local cands = cmd_line:match('^%S+%s+spawn%s') and vim.tbl_keys(Config.get().tools)
-        or { 'toggle', 'select', 'send', 'dashboard', 'diagnostics', 'spawn' }
+        or { 'toggle', 'select', 'send', 'dashboard', 'diagnostics', 'jump', 'spawn' }
       return vim.tbl_filter(function(c)
         return vim.startswith(c, arg_lead)
       end, cands)

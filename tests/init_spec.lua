@@ -194,6 +194,81 @@ describe('herd init', function()
     assert.is_true(called)
   end)
 
+  it('parse_refs keeps real file refs, drops prose and non-files, and dedups', function()
+    local base = vim.fn.getcwd()
+    local text = table.concat({
+      'edit lua/herd/init.lua:10:5 then lua/herd/init.lua:10:5 again,',
+      'also nope/missing.lua:3 and dir lua:7 and the time 10:30',
+    }, ' ')
+    local refs = Herd.parse_refs(text, base)
+    assert.are.equal(1, #refs) -- only the (deduped) real file ref survives
+    assert.are.equal(vim.fs.normalize(base .. '/lua/herd/init.lua'), refs[1].filename)
+    assert.are.equal(10, refs[1].lnum)
+    assert.are.equal(5, refs[1].col)
+  end)
+
+  it('jump populates the quickfix list from agent file references', function()
+    Herd.setup({})
+    local Herdr = require('herd.herdr')
+    local Target = require('herd.target')
+    local saved = {
+      server = Herdr.server_running, agents = Herdr.agents, read = Herdr.agent_read,
+      current = Target.current, parse = Herd.parse_refs, notify = vim.notify,
+    }
+    Herdr.server_running = function() return true end
+    Herdr.agents = function() return {} end
+    Target.current = function() return { name = 'claude', pane_id = 'p1', cwd = vim.fn.getcwd() } end
+    Herdr.agent_read = function() return 'some agent output' end
+    Herd.parse_refs = function() return { { filename = vim.fn.getcwd() .. '/lua/herd/init.lua', lnum = 3, col = 1 } } end
+    vim.notify = function() end
+    vim.fn.setqflist({}, 'r')
+
+    Herd.jump()
+    local qf = vim.fn.getqflist()
+
+    Herdr.server_running, Herdr.agents, Herdr.agent_read = saved.server, saved.agents, saved.read
+    Target.current, Herd.parse_refs, vim.notify = saved.current, saved.parse, saved.notify
+
+    assert.are.equal(1, #qf)
+    assert.are.equal(3, qf[1].lnum)
+  end)
+
+  it('jump notifies and leaves the quickfix list alone when there are no refs', function()
+    Herd.setup({})
+    local Herdr = require('herd.herdr')
+    local Target = require('herd.target')
+    local saved = {
+      server = Herdr.server_running, agents = Herdr.agents, read = Herdr.agent_read,
+      current = Target.current, parse = Herd.parse_refs, notify = vim.notify,
+    }
+    Herdr.server_running = function() return true end
+    Herdr.agents = function() return {} end
+    Target.current = function() return { name = 'claude', pane_id = 'p1', cwd = vim.fn.getcwd() } end
+    Herdr.agent_read = function() return 'no refs here' end
+    Herd.parse_refs = function() return {} end
+    local notified
+    vim.notify = function(m) notified = m end
+    vim.fn.setqflist({}, 'r', { title = 'sentinel', items = {} })
+
+    Herd.jump()
+
+    Herdr.server_running, Herdr.agents, Herdr.agent_read = saved.server, saved.agents, saved.read
+    Target.current, Herd.parse_refs, vim.notify = saved.current, saved.parse, saved.notify
+
+    assert.is_truthy(notified and notified:find('no file references', 1, true))
+    assert.are.equal('sentinel', vim.fn.getqflist({ title = 1 }).title) -- untouched
+  end)
+
+  it(':Herd jump dispatches to M.jump', function()
+    Herd.setup({})
+    local saved = Herd.jump
+    local called = false
+    Herd.jump = function() called = true end
+    vim.cmd('Herd jump')
+    Herd.jump = saved
+    assert.is_true(called)
+  end)
+
   it('spawn errors cleanly on an unknown tool', function()
     Herd.setup({ tools = {} })
     local notified
