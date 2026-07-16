@@ -87,4 +87,31 @@ function M.resolve(tabs, panes, agents)
   return nil, 'no origin editor here'
 end
 
+--- Pane id to target in the resolved origin tab (where the editor lives, or the
+--- idle shell it left behind after nvim quit). First pane in the tab.
+---@param panes table[] raw entries from `herdr pane list`
+---@param tab_id string origin tab id (from resolve)
+---@return string? pane_id
+function M.editor_pane(panes, tab_id)
+  for _, p in ipairs(panes) do
+    if p.tab_id == tab_id then
+      return p.pane_id
+    end
+  end
+  return nil
+end
+
+--- Is nvim a foreground process in a pane's `pane process-info` result? Used to
+--- tell a live editor from the idle shell it was quit to.
+---@param process_info table? the `result.process_info` from `pane process-info`
+---@return boolean
+function M.has_nvim(process_info)
+  for _, p in ipairs(process_info and process_info.foreground_processes or {}) do
+    if p.name == 'nvim' or p.argv0 == 'nvim' then
+      return true
+    end
+  end
+  return false
+end
+
 return M

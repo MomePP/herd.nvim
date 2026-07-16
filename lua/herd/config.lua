@@ -41,6 +41,14 @@ local M = {}
 ---@field keys herd.Keys
 ---@field win herd.Win
 ---@field workspace string  herdr workspace label that hosts spawned agents
+---@field send { context: boolean|fun(ctx: table): string }  visual send: true
+---                    (default) wraps the selection as `path:lines` + a
+---                    filetype-fenced block so the agent knows where the code
+---                    lives; false sends raw text; a function(ctx) formats it,
+---                    where ctx = { path, ft, sline, eline, text }.
+---@field reload boolean  true (default) runs `checktime` when nvim regains
+---                    focus (and, in float mode, on leaving an agent float) so
+---                    buffers the agent edited reload instead of going stale.
 
 ---@type herd.Config
 local defaults = {
@@ -48,6 +56,12 @@ local defaults = {
   mode = 'float', -- 'native' requires nvim to run inside a herdr pane; see README
   picker = 'auto', -- global/dashboard picker only; 'select' forces plain vim.ui.select
   workspace = 'herd.nvim', -- dedicated workspace label; signals nvim-spawned agents
+  send = {
+    -- true wraps the visual selection with its `path:lines` header and a
+    -- filetype fence; false sends raw text; a function(ctx) formats it.
+    context = true,
+  },
+  reload = true, -- checktime on return so agent-edited buffers refresh
   keys = {
     -- leader-doubled scheme: <leader>\ (leader is '\' → a double-tap) drives the
     -- active agent across modes; s/S open the pickers. In native mode the herdr

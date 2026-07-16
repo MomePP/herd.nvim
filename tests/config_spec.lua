@@ -52,4 +52,19 @@ describe('herd.config', function()
     assert.are.equal('select', Config.setup({ picker = 'select' }).picker)
     Config.options = nil -- don't leak the forced picker into other spec files
   end)
+
+  it('send.context defaults to true and can be disabled', function()
+    assert.is_true(Config.setup({}).send.context)
+    Config.options = nil
+    assert.is_false(Config.setup({ send = { context = false } }).send.context)
+    Config.options = nil
+  end)
+
+  it('reload defaults to true and can be disabled', function()
+    assert.is_true(Config.setup({}).reload)
+    Config.options = nil
+    assert.is_false(Config.setup({ reload = false }).reload)
+    Config.options = nil
+  end)
+
 end)

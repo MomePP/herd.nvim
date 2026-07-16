@@ -374,4 +374,17 @@ describe('herd.herdr', function()
     assert.is_nil(Herdr.agent_read('w6:pQ'))
     Herdr.api = saved
   end)
+
+  it('agent_read passes source and lines when given opts', function()
+    local saved = Herdr.api
+    Herdr.api = function(args)
+      assert.are.same(
+        { 'agent', 'read', 'w6:pQ', '--source', 'recent', '--format', 'text', '--lines', '200' },
+        args
+      )
+      return { read = { text = 'x' } }
+    end
+    assert.are.equal('x', Herdr.agent_read('w6:pQ', { source = 'recent', lines = 200 }))
+    Herdr.api = saved
+  end)
 end)

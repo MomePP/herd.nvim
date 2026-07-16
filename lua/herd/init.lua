@@ -143,26 +143,41 @@ function M.select()
   end)
 end
 
---- The current visual selection as one string (getregion, nvim >= 0.10).
----@return string
-local function selection()
+--- The current visual selection: its text plus 1-based line range (getregion,
+--- nvim >= 0.10). Seam: tests replace this to drive M.send without a live
+--- selection.
+---@return { text: string, sline: integer, eline: integer }
+function M.selection()
   local mode = vim.fn.mode()
   if not mode:match('^[vV\22]$') then
     mode = vim.fn.visualmode()
   end
   if mode == '' then
-    return ''
+    return { text = '', sline = 0, eline = 0 }
   end
-  return table.concat(vim.fn.getregion(vim.fn.getpos('v'), vim.fn.getpos('.'), { type = mode }), '\n')
+  local vpos, cpos = vim.fn.getpos('v'), vim.fn.getpos('.')
+  local text = table.concat(vim.fn.getregion(vpos, cpos, { type = mode }), '\n')
+  local sline, eline = vpos[2], cpos[2]
+  if sline > eline then
+    sline, eline = eline, sline
+  end
+  return { text = text, sline = sline, eline = eline }
 end
 
---- Send the visual selection to the active agent (no Enter — review then submit).
-function M.send()
-  local text = selection()
-  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'nx', false)
-  if text == '' then
-    return
-  end
+--- Wrap a selection as a location-prefixed, filetype-fenced block —
+--- `path:sline-eline:` then a ``` fence — so the agent knows where the code
+--- lives. Public so a user `send.context` function can reuse it.
+---@param ctx { path: string, ft: string, sline: integer, eline: integer, text: string }
+---@return string
+function M.format_context(ctx)
+  local lines = ctx.sline == ctx.eline and tostring(ctx.sline) or ('%d-%d'):format(ctx.sline, ctx.eline)
+  return ('%s:%s:\n```%s\n%s\n```'):format(ctx.path, lines, ctx.ft, ctx.text)
+end
+
+--- Deliver `text` to this project's active agent (no Enter) and land in it to
+--- review/submit. Shared by send and diagnostics.
+---@param text string
+local function deliver(text)
   if not ensure_server() then
     return
   end
@@ -173,6 +188,106 @@ function M.send()
   Herdr.agent_send(a.pane_id, text) -- target the unambiguous pane, not the name
   show(a) -- land in the agent to submit
   vim.notify('herd → ' .. a.name)
+end
+
+--- Send the visual selection to the active agent (no Enter — review then
+--- submit). With `send.context` (default on) the selection is wrapped with its
+--- file path and line range so the agent knows where the code lives.
+function M.send()
+  local sel = M.selection()
+  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'nx', false)
+  if sel.text == '' then
+    return
+  end
+  local payload = sel.text
+  local sendcfg = Config.get().send
+  -- `send` may be set to a non-table (e.g. `send = false`) to disable wrapping,
+  -- mirroring the `keys.x = false` idiom — guard before indexing `.context`.
+  local ctxopt = type(sendcfg) == 'table' and sendcfg.context
+  if ctxopt then
+    local ctx = {
+      path = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(0), ':.'),
+      ft = vim.bo.filetype,
+      sline = sel.sline,
+      eline = sel.eline,
+      text = sel.text,
+    }
+    payload = type(ctxopt) == 'function' and ctxopt(ctx) or M.format_context(ctx)
+  end
+  deliver(payload)
+end
+
+--- vim.diagnostic.severity is 1..4 (ERROR, WARN, INFO, HINT).
+local DIAG_SEVERITY = { 'ERROR', 'WARN', 'INFO', 'HINT' }
+
+--- Format a buffer's diagnostics as a text block for the agent: a file header
+--- then `line:col [SEVERITY] message (source)` per entry. Public so a caller can
+--- reuse the formatting.
+---@param path string
+---@param diags vim.Diagnostic[]
+---@return string
+function M.format_diagnostics(path, diags)
+  local lines = { 'Diagnostics for ' .. path .. ':' }
+  for _, d in ipairs(diags) do
+    local sev = DIAG_SEVERITY[d.severity] or '?'
+    local src = d.source and (' (' .. d.source .. ')') or ''
+    -- collapse multi-line messages so each diagnostic stays on one line
+    local msg = d.message:gsub('%s*\n%s*', ' ')
+    lines[#lines + 1] = ('%d:%d [%s] %s%s'):format(d.lnum + 1, d.col + 1, sev, msg, src)
+  end
+  return table.concat(lines, '\n')
+end
+
+--- Send the current buffer's LSP diagnostics to the active agent (no Enter —
+--- review then submit). No-op with a notice when the buffer is clean.
+function M.diagnostics()
+  local diags = vim.diagnostic.get(0)
+  if #diags == 0 then
+    return vim.notify('herd: no diagnostics in this buffer', vim.log.levels.INFO)
+  end
+  local path = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(0), ':.')
+  deliver(M.format_diagnostics(path, diags))
+end
+
+local uv = vim.uv or vim.loop
+
+--- Extract `path:line(:col)?` references from agent output, resolving each
+--- relative to `base` and keeping only those that point at a real file (drops
+--- prose like `10:30`, directories, and dead paths). Deduped. Public for reuse.
+---@param text string
+---@param base string directory to resolve relative paths against
+---@return { filename: string, lnum: integer, col: integer }[]
+function M.parse_refs(text, base)
+  local seen, out = {}, {}
+  for path, lnum, col in text:gmatch('([%w%._/%-]+):(%d+):?(%d*)') do
+    local abs = vim.fs.normalize(path:match('^/') and path or (base .. '/' .. path))
+    local key = abs .. ':' .. lnum .. ':' .. col
+    local st = uv.fs_stat(abs)
+    if not seen[key] and st and st.type == 'file' then
+      seen[key] = true
+      out[#out + 1] = { filename = abs, lnum = tonumber(lnum), col = col ~= '' and tonumber(col) or 1 }
+    end
+  end
+  return out
+end
+
+--- Jump to files the active agent referenced: read its recent output, collect
+--- the `path:line` references into the quickfix list, and jump to the first.
+function M.jump()
+  if not ensure_server() then
+    return
+  end
+  local a = Target.current(Herdr.agents(), cwd(), M.target)
+  if not a then
+    return vim.notify('herd: no agents running in this project', vim.log.levels.WARN)
+  end
+  local text = Herdr.agent_read(a.pane_id, { source = 'recent', lines = 200 })
+  local refs = text and M.parse_refs(text, a.cwd) or {}
+  if #refs == 0 then
+    return vim.notify('herd: no file references in the agent output', vim.log.levels.INFO)
+  end
+  vim.fn.setqflist({}, ' ', { title = 'herd: ' .. a.name, items = refs })
+  vim.cmd('cfirst')
 end
 
 --- Surface the agent pool. Float mode: focus the dedicated herd workspace in
@@ -275,9 +390,31 @@ function M.setup(opts)
     })
   end
 
+  -- Auto-reload: the agent (herdr owns its PTY) edits files outside nvim. Run
+  -- `checktime` when nvim regains focus — and, in float mode, when leaving an
+  -- agent float back to a normal buffer — so those buffers refresh instead of
+  -- going stale (or prompting mid-edit). Respects 'autoread' like any checktime.
+  if cfg.reload ~= false then
+    local grp = vim.api.nvim_create_augroup('herd_reload', { clear = true })
+    local function refresh()
+      vim.cmd('checktime')
+    end
+    vim.api.nvim_create_autocmd('FocusGained', { group = grp, callback = refresh })
+    if cfg.mode == 'float' then
+      vim.api.nvim_create_autocmd('BufLeave', {
+        group = grp,
+        callback = function(ev)
+          if Terminal.is_float_buf(ev.buf) then
+            vim.schedule(refresh) -- after the buffer switch settles
+          end
+        end,
+      })
+    end
+  end
+
   vim.api.nvim_create_user_command('Herd', function(a)
     local sub = a.args ~= '' and a.args or 'toggle'
-    local fn = ({ toggle = M.toggle, select = M.select, send = M.send, dashboard = M.dashboard })[sub]
+    local fn = ({ toggle = M.toggle, select = M.select, send = M.send, dashboard = M.dashboard, diagnostics = M.diagnostics, jump = M.jump })[sub]
     if fn then
       fn()
     elseif sub:match('^spawn%s') then
@@ -292,7 +429,7 @@ function M.setup(opts)
     complete = function(arg_lead, cmd_line)
       -- after `spawn `, complete configured tool names; otherwise subcommands
       local cands = cmd_line:match('^%S+%s+spawn%s') and vim.tbl_keys(Config.get().tools)
-        or { 'toggle', 'select', 'send', 'dashboard', 'spawn' }
+        or { 'toggle', 'select', 'send', 'dashboard', 'diagnostics', 'jump', 'spawn' }
       return vim.tbl_filter(function(c)
         return vim.startswith(c, arg_lead)
       end, cands)

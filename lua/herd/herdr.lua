@@ -322,8 +322,16 @@ end
 --- snacks picker's preview pane to show what an agent is doing.
 ---@param pane_id string
 ---@return string?
-function M.agent_read(pane_id)
-  local res = M.api({ 'agent', 'read', pane_id, '--source', 'visible', '--format', 'text' }, { quiet = true })
+---@param pane_id string
+---@param opts? { source?: 'visible'|'recent'|'recent-unwrapped', lines?: integer }
+---@return string?
+function M.agent_read(pane_id, opts)
+  opts = opts or {}
+  local args = { 'agent', 'read', pane_id, '--source', opts.source or 'visible', '--format', 'text' }
+  if opts.lines then
+    vim.list_extend(args, { '--lines', tostring(opts.lines) })
+  end
+  local res = M.api(args, { quiet = true })
   return res and res.read and res.read.text
 end
 

@@ -60,20 +60,26 @@ drag-select)? See [Native mode](#-native-mode) below.
 | Key | Mode | Action |
 | --- | --- | --- |
 | `<leader>\` | normal | Toggle this cwd's agent float. `<count><key>` targets slot N; an **empty slot spawns the inferred tool's next clone** (inferred from current target, first project agent, or sole configured tool — else opens the picker). |
-| `<leader>\` | visual | Send the selection to the active agent (no Enter — the float opens so you can review and submit). |
+| `<leader>\` | visual | Send the selection to the active agent (no Enter — the float opens so you can review and submit). By default the selection is wrapped with its `path:line-range` and a filetype fence so the agent knows where the code lives — see `send.context`. |
 | `<leader>\` | terminal | Hide the float from inside the agent. |
 | `<leader>s` | normal | Grouped picker (**current project only**): switch to a running agent or spawn a configured tool. Rows show `name  [status]`. |
 | `<leader>S` | normal | Dashboard. Float mode focuses the dedicated herd.nvim workspace; native mode opens the global cross-project agent picker. |
 | `<S-CR>` | terminal | Send a newline (kitty `Esc[13;2u`) to the agent — for multi-line prompts without submitting. |
 
-Also available as `:Herd [toggle|select|send|dashboard]`, `:Herd spawn <tool>`, and the
-Lua API `require('herd').{toggle,select,send,dashboard,spawn}()`.
+Also available as `:Herd [toggle|select|send|dashboard|diagnostics|jump]`, `:Herd spawn <tool>`, and the
+Lua API `require('herd').{toggle,select,send,dashboard,diagnostics,jump,spawn}()`.
+`:Herd diagnostics` sends the current buffer's LSP diagnostics to the active agent, and
+`:Herd jump` reads the agent's recent output, collects the `path:line` references into the
+quickfix list, and jumps to the first — neither has a default keymap; bind
+`require('herd').diagnostics` / `require('herd').jump` yourself if you want one.
 
 ## ✨ Features
 
 - 🚀 **Spawn + fullscreen float** — picker spawns a tool and shows it in a fullscreen nvim float.
 - 🔄 **Toggle** — `<leader>\` (normal) opens/closes this cwd's agent; `count` targets a numbered slot.
-- ✂️ **Send selection** — visual `<leader>\` pushes the selection to the active agent (no Enter — review, then submit).
+- ✂️ **Send selection** — visual `<leader>\` pushes the selection to the active agent (no Enter — review, then submit). By default it's wrapped with `path:line-range` + a filetype fence so the agent sees *where* the code lives (`send.context`).
+- 🩹 **Send diagnostics** — `:Herd diagnostics` pushes the current buffer's LSP diagnostics to the active agent ("here are my errors, fix them"). No default keymap.
+- 🎯 **Jump to references** — `:Herd jump` scans the agent's recent output for `path:line` references, drops them in the quickfix list, and jumps to the first. No default keymap.
 - 🗂 **Grouped picker** — `<leader>s` lists running agents **for the current project** and configured tools. Use the dashboard for a cross-project view.
 - 📊 **Dashboard** — `<leader>S` (or `:Herd dashboard`). Float mode focuses the dedicated herd.nvim workspace; native mode opens the global cross-project agent picker.
 - 💾 **Persistence** — agents survive closing the float and `:q`; herdr owns the process and rediscovers them via `herdr agent list`.
@@ -107,6 +113,18 @@ require('herd').setup({
 
   workspace = 'herd.nvim',  -- float mode only: herdr workspace label that hosts spawned agents
                             -- (kept off your project tabs). Native mode uses nvim's own workspace.
+
+  send = {
+    -- Visual send. true (default) wraps the selection as `path:line-range` + a
+    -- filetype-fenced block so the agent knows where the code lives; false
+    -- sends the raw selection; a function(ctx) -> string formats it yourself,
+    -- where ctx = { path, ft, sline, eline, text }.
+    context = true,
+  },
+
+  reload = true,  -- run `checktime` when nvim regains focus (and, in float mode, on
+                  -- leaving an agent float) so buffers the agent edited reload
+                  -- instead of going stale. Respects 'autoread'. false disables.
 
   -- Keymaps. Set any to `false` to disable it.
   keys = {
@@ -211,6 +229,28 @@ labelled `dotfiles`), falling back to matching the agent's spawn cwd against
 your editor panes. When nothing matches (not a herd tab, editor gone) it shows
 a herdr notification and does nothing — herdr has no CLI to re-dispatch the
 key's default action.
+
+#### Resurrect the editor (`--resurrect`)
+
+If you *quit nvim* but leave the agent running, the editor tab stays behind as
+an idle shell — so `herd-return` still focuses it, but there's no editor there.
+Add `--resurrect` to the binding to have it offer to relaunch nvim in that pane:
+
+```toml
+[[keys.command]]
+key = 'prefix+\'
+type = "shell"
+command = "nvim -l /path/to/herd.nvim/bin/herd-return.lua --resurrect"
+```
+
+On return, herd-return checks whether nvim is actually live in the origin tab
+(via `herdr pane process-info`). If it is, it just focuses it (silent, as
+before). If not, it focuses the tab and runs a prompt in the shell pane —
+`herd: no nvim here — resurrect? [Y/n]` — where **y** relaunches the editor in
+place and **n** leaves you at the shell. Native mode only (float mode has no
+herdr pane to relaunch into). `HERD_EDITOR` overrides the launched command
+(e.g. `HERD_EDITOR="nvim -S Session.vim"` or a session-restoring wrapper); nvim
+runs as a child of the shell, so quitting it returns you to the shell as usual.
 
 If you'd rather get back with plain herdr navigation, these work too — bind
 them in `config.toml`'s `[keys]` section:
