@@ -91,13 +91,14 @@ not, which is still strictly better than a silently stale buffer.
 ### 3. Agent → editor jump
 New `Herdr.agent_read(target, { source = 'recent', lines = N })` wrapping
 `herdr agent read <target> --source recent --lines N --format text`. New
-`M.goto()`:
+`M.jump()` (named `jump`, not `goto` — `goto` is a reserved Lua keyword, so
+`M.goto()` / `require('herd').goto()` would be a syntax error):
 - read the current target's recent output,
 - scan for `path:line(:col)?` tokens, resolve each relative to the agent's cwd,
   keep only those that `stat` to a real file (drops prose false-positives),
   dedup,
 - set the quickfix list and `:cfirst`; notify if none found.
-- Exposed as `:Herd goto` + `require('herd').goto()`. **No default keymap** —
+- Exposed as `:Herd jump` + `require('herd').jump()`. **No default keymap** —
   user opts in (avoids claiming a key).
 
 ### 4. Send diagnostics

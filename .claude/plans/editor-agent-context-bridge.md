@@ -61,8 +61,9 @@ stubbed as in `tests/herdr_spec.lua`/`tests/init_spec.lua`.
    return quickfix items `{ filename, lnum, col }`.
    → verify: unit test — real refs kept, prose (`foo:bar`, nonexistent) dropped,
    dedup works.
-3. Add `M.goto()`: read current target's output, `parse_refs`, `setqflist` +
-   `:cfirst`; notify if empty. Expose `:Herd goto` + API. No default keymap.
+3. Add `M.jump()` (`jump`, not `goto` — reserved Lua keyword): read current
+   target's output, `parse_refs`, `setqflist` + `:cfirst`; notify if empty.
+   Expose `:Herd jump` + API. No default keymap.
    → verify: stub `agent_read` returning fixture output; assert qflist contents
    and `cfirst`; empty → notify.
 
