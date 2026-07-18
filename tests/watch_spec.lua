@@ -3,7 +3,7 @@ local Herdr = require('herd.herdr')
 
 describe('herd.watch', function()
   local spawned, killed, api_results, run_calls
-  local agent = { name = 'claude', pane_id = 'w1:p2', tab_id = 'w1:t2', cwd = '/p' }
+  local agent = { name = 'claude', pane_id = 'w1:p2', tab_id = 'w1:t2', workspace_id = 'w1', cwd = '/p' }
 
   before_each(function()
     spawned, killed, run_calls = {}, {}, {}
@@ -79,6 +79,38 @@ describe('herd.watch', function()
     spawned[1].on_done('{"error":{"code":"pane_not_found"}}', '')
     vim.wait(100, function() return #run_calls >= 1 end)
     assert.are.same({ 'tab focus w1:t1' }, run_calls)
+  end)
+
+  -- herdr 0.7.4 removes a tab whose only pane died before we can query it:
+  -- `tab get` fails, so "was the user looking at the agent" is inferred from
+  -- the focused workspace + the editor tab not being focused.
+  it('tab already gone: jumps back when still in the agent workspace and not in the editor', function()
+    api_results['tab get w1:t2'] = nil -- herdr auto-closed the empty tab
+    api_results['workspace list'] = { workspaces = { { workspace_id = 'w1', focused = true } } }
+    api_results['tab get w1:t1'] = { tab = { focused = false } }
+    Watch.start(agent)
+    spawned[1].on_done('{"error":{"code":"pane_not_found"}}', '')
+    vim.wait(100, function() return #run_calls >= 1 end)
+    assert.are.same({ 'tab focus w1:t1' }, run_calls)
+  end)
+
+  it('tab already gone: stays put when the user moved to another workspace', function()
+    api_results['tab get w1:t2'] = nil
+    api_results['workspace list'] = { workspaces = { { workspace_id = 'w9', focused = true } } }
+    Watch.start(agent)
+    spawned[1].on_done('{"error":{"code":"pane_not_found"}}', '')
+    vim.wait(50, function() return #run_calls >= 1 end)
+    assert.are.same({}, run_calls)
+  end)
+
+  it('tab already gone: stays put when the editor tab is already focused', function()
+    api_results['tab get w1:t2'] = nil
+    api_results['workspace list'] = { workspaces = { { workspace_id = 'w1', focused = true } } }
+    api_results['tab get w1:t1'] = { tab = { focused = true } }
+    Watch.start(agent)
+    spawned[1].on_done('{"error":{"code":"pane_not_found"}}', '')
+    vim.wait(50, function() return #run_calls >= 1 end)
+    assert.are.same({}, run_calls)
   end)
 
   it('re-arms the wait on timeout, stops on any other outcome', function()

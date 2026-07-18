@@ -29,18 +29,43 @@ function M.spawn(argv, on_done)
 end
 
 --- The agent's pane died: return the herdr client to nvim's tab if the user
---- is still sitting on the dead agent's tab, and reap that tab when the agent
---- was its only pane (splits survive).
+--- was looking at the agent, and reap the tab when the agent was its only
+--- pane (splits survive).
 ---@param a herd.Agent
 local function on_pane_dead(a)
+  if not vim.env.HERDR_TAB_ID then
+    return
+  end
   local res = Herdr.api({ 'tab', 'get', a.tab_id }, { quiet = true })
   local tab = res and res.tab
-  if tab and tab.focused and vim.env.HERDR_TAB_ID then
-    Herdr.run({ 'tab', 'focus', vim.env.HERDR_TAB_ID }, { quiet = true })
+  if tab then
+    if tab.focused then
+      Herdr.run({ 'tab', 'focus', vim.env.HERDR_TAB_ID }, { quiet = true })
+    end
+    if tab.pane_count == 0 then
+      Herdr.run({ 'tab', 'close', a.tab_id }, { quiet = true })
+    end
+    return
   end
-  if tab and tab.pane_count == 0 then
-    Herdr.run({ 'tab', 'close', a.tab_id }, { quiet = true })
+  -- herdr (0.7.4) removes a tab whose only pane died before this query can
+  -- see it, so "was the user looking at the agent" can't be read off the tab.
+  -- Infer it instead: the focused workspace is still the agent's, and the
+  -- editor tab isn't focused (a return would have disarmed us via FocusGained).
+  local list = Herdr.api({ 'workspace', 'list' }, { quiet = true })
+  local focused_ws
+  for _, w in ipairs(list and list.workspaces or {}) do
+    if w.focused then
+      focused_ws = w.workspace_id
+    end
   end
+  if focused_ws ~= a.workspace_id then
+    return
+  end
+  local own = Herdr.api({ 'tab', 'get', vim.env.HERDR_TAB_ID }, { quiet = true })
+  if own and own.tab and own.tab.focused then
+    return
+  end
+  Herdr.run({ 'tab', 'focus', vim.env.HERDR_TAB_ID }, { quiet = true })
 end
 
 --- Watch `a`'s pane, replacing any previous watcher.
