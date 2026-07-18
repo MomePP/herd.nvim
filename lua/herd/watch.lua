@@ -6,8 +6,6 @@
 --- focus), and guessing steals focus from sibling tabs. Only one watcher runs
 --- at a time; `herdr wait output` blocks on the server socket, so watching
 --- costs no polling.
-local Herdr = require('herd.herdr')
-
 local M = {}
 
 -- Text that should not appear in a pane: the wait ends by pane death
@@ -35,13 +33,23 @@ end
 --- The agent's pane died: reap its tab when the agent was its only pane and
 --- herdr left the tab behind (0.7.4 usually removes it first; older versions
 --- and race windows do not). Never moves focus — see the module comment.
+--- Runs through the async spawn seam, not Herdr.api/run — those block on
+--- :wait(), and this fires on nvim's main loop right at hand-back time.
 ---@param a herd.Agent
 local function on_pane_dead(a)
-  local res = Herdr.api({ 'tab', 'get', a.tab_id }, { quiet = true })
-  local tab = res and res.tab
-  if tab and tab.pane_count == 0 then
-    Herdr.run({ 'tab', 'close', a.tab_id }, { quiet = true })
-  end
+  M.spawn({ 'herdr', 'tab', 'get', a.tab_id }, function(stdout, _, code)
+    if code ~= 0 then
+      return -- tab already gone (herdr reaped it) or server unreachable
+    end
+    local ok, decoded = pcall(vim.json.decode, stdout)
+    -- type-guard each hop: JSON null decodes to vim.NIL (userdata), which
+    -- would throw on field access (same envelope hazard Herdr.api handles)
+    local result = ok and type(decoded) == 'table' and decoded.result
+    local tab = type(result) == 'table' and result.tab
+    if type(tab) == 'table' and tab.pane_count == 0 then
+      M.spawn({ 'herdr', 'tab', 'close', a.tab_id }, function() end)
+    end
+  end)
 end
 
 --- Watch `a`'s pane, replacing any previous watcher.
