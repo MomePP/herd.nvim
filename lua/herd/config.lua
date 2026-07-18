@@ -46,11 +46,12 @@ local M = {}
 ---                    filetype-fenced block so the agent knows where the code
 ---                    lives; false sends raw text; a function(ctx) formats it,
 ---                    where ctx = { path, ft, sline, eline, text }.
----@field auto_return boolean  true (default) arms an exit watcher when native
----                    mode focuses an agent: if the agent process ends while
----                    you are on its tab, herdr jumps back to nvim's tab and
----                    the empty tab is reaped. Disarmed when nvim regains
----                    focus. Native-only; float mode auto-closes on its own.
+---@field auto_return boolean  true (default): native-mode agents spawn under
+---                    bin/herd-run.sh, which — if you are in the agent's pane
+---                    when its process ends — hands focus back to nvim's tab
+---                    before the pane dies (no tab flash); an exit watcher
+---                    also reaps lingering agentless tabs. false disables
+---                    both. Native-only; float mode auto-closes on its own.
 ---@field reload boolean  true (default) runs `checktime` when nvim regains
 ---                    focus (and, in float mode, on leaving an agent float) so
 ---                    buffers the agent edited reload instead of going stale.

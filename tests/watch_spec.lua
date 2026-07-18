@@ -27,7 +27,6 @@ describe('herd.watch', function()
       run_calls[#run_calls + 1] = table.concat(args, ' ')
       return ''
     end
-    vim.env.HERDR_TAB_ID = 'w1:t1'
   end)
 
   it('start spawns a blocking herdr wait on the agent pane', function()
@@ -52,74 +51,54 @@ describe('herd.watch', function()
     Watch.start(agent)
     Watch.stop()
     assert.are.equal(1, #killed)
-    spawned[1].on_done('{"error":{"code":"pane_not_found"}}', '')
+    spawned[1].on_done('{"error":{"code":"pane_not_found"}}', '', 1)
     vim.wait(10, function() return false end) -- drain scheduled callbacks
     assert.are.same({}, run_calls)
   end)
 
-  it('pane death while the agent tab is focused returns to the editor tab and reaps it', function()
+  -- Post-death, "was the user looking at the agent" is unknowable (herdr has
+  -- already reaped the tab and moved focus), so the watcher never moves focus
+  -- — the return trip belongs to bin/herd-run.sh, which checks pre-death.
+  it('pane death reaps a lingering empty tab and moves no focus', function()
     api_results['tab get w1:t2'] = { tab = { focused = true, pane_count = 0 } }
     Watch.start(agent)
-    spawned[1].on_done('{"error":{"code":"pane_not_found"}}', '')
-    vim.wait(100, function() return #run_calls >= 2 end)
-    assert.are.same({ 'tab focus w1:t1', 'tab close w1:t2' }, run_calls)
-  end)
-
-  it('pane death while elsewhere reaps the empty tab but does not steal focus', function()
-    api_results['tab get w1:t2'] = { tab = { focused = false, pane_count = 0 } }
-    Watch.start(agent)
-    spawned[1].on_done('{"error":{"code":"pane_not_found"}}', '')
+    spawned[1].on_done('{"error":{"code":"pane_not_found"}}', '', 1)
     vim.wait(100, function() return #run_calls >= 1 end)
     assert.are.same({ 'tab close w1:t2' }, run_calls)
   end)
 
-  it('does not reap a tab that still has panes (splits survive)', function()
+  it('pane death leaves a tab with surviving panes alone (splits survive)', function()
     api_results['tab get w1:t2'] = { tab = { focused = true, pane_count = 1 } }
     Watch.start(agent)
-    spawned[1].on_done('{"error":{"code":"pane_not_found"}}', '')
-    vim.wait(100, function() return #run_calls >= 1 end)
-    assert.are.same({ 'tab focus w1:t1' }, run_calls)
-  end)
-
-  -- herdr 0.7.4 removes a tab whose only pane died before we can query it:
-  -- `tab get` fails, so "was the user looking at the agent" is inferred from
-  -- the focused workspace + the editor tab not being focused.
-  it('tab already gone: jumps back when still in the agent workspace and not in the editor', function()
-    api_results['tab get w1:t2'] = nil -- herdr auto-closed the empty tab
-    api_results['workspace list'] = { workspaces = { { workspace_id = 'w1', focused = true } } }
-    api_results['tab get w1:t1'] = { tab = { focused = false } }
-    Watch.start(agent)
-    spawned[1].on_done('{"error":{"code":"pane_not_found"}}', '')
-    vim.wait(100, function() return #run_calls >= 1 end)
-    assert.are.same({ 'tab focus w1:t1' }, run_calls)
-  end)
-
-  it('tab already gone: stays put when the user moved to another workspace', function()
-    api_results['tab get w1:t2'] = nil
-    api_results['workspace list'] = { workspaces = { { workspace_id = 'w9', focused = true } } }
-    Watch.start(agent)
-    spawned[1].on_done('{"error":{"code":"pane_not_found"}}', '')
+    spawned[1].on_done('{"error":{"code":"pane_not_found"}}', '', 1)
     vim.wait(50, function() return #run_calls >= 1 end)
     assert.are.same({}, run_calls)
   end)
 
-  it('tab already gone: stays put when the editor tab is already focused', function()
-    api_results['tab get w1:t2'] = nil
-    api_results['workspace list'] = { workspaces = { { workspace_id = 'w1', focused = true } } }
-    api_results['tab get w1:t1'] = { tab = { focused = true } }
+  it('pane death with the tab already gone does nothing', function()
+    api_results['tab get w1:t2'] = nil -- herdr auto-closed the empty tab
     Watch.start(agent)
-    spawned[1].on_done('{"error":{"code":"pane_not_found"}}', '')
+    spawned[1].on_done('{"error":{"code":"pane_not_found"}}', '', 1)
     vim.wait(50, function() return #run_calls >= 1 end)
+    assert.are.same({}, run_calls)
+  end)
+
+  it('a spurious sentinel match (rc 0) re-arms — the pane is alive', function()
+    Watch.start(agent)
+    spawned[1].on_done('{"result":{"matched":true}}', '', 0)
+    vim.wait(100, function() return #spawned == 2 end)
+    assert.are.equal(2, #spawned) -- re-armed on the same pane
+    assert.are.equal('w1:p2', spawned[2].argv[4])
     assert.are.same({}, run_calls)
   end)
 
   it('re-arms the wait on timeout, stops on any other outcome', function()
     Watch.start(agent)
-    spawned[1].on_done('', 'timed out waiting for output')
+    spawned[1].on_done('', 'timed out waiting for output', 1)
     vim.wait(100, function() return #spawned == 2 end)
     assert.are.equal(2, #spawned) -- re-armed on the same pane
     assert.are.equal('w1:p2', spawned[2].argv[4])
-    spawned[2].on_done('', 'connect: no such file or directory') -- server gone
+    spawned[2].on_done('', 'connect: no such file or directory', 1) -- server gone
     vim.wait(10, function() return false end)
     assert.are.equal(2, #spawned) -- no re-arm, no crash
     assert.are.same({}, run_calls)

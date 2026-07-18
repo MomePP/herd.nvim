@@ -1,15 +1,18 @@
---- Native-mode auto-return. While the user is over in an agent's herdr tab,
---- watch that pane and jump the herdr client back to nvim's own tab the moment
---- the agent process exits. Only one watcher runs at a time (the agent last
---- focused through herd) — `herdr wait output` blocks on the server socket, so
---- watching costs no polling. Float mode needs none of this: the attach job's
---- on_exit already closes the float.
+--- Native-mode exit janitor. While the user is over in an agent's herdr tab,
+--- watch that pane and reap the agent's tab if it lingers agentless after the
+--- process exits. The return trip is NOT decided here: only bin/herd-run.sh
+--- can check focus before the pane dies — post-death, "was the user looking
+--- at the agent" is unknowable (herdr has already reaped the tab and moved
+--- focus), and guessing steals focus from sibling tabs. Only one watcher runs
+--- at a time; `herdr wait output` blocks on the server socket, so watching
+--- costs no polling.
 local Herdr = require('herd.herdr')
 
 local M = {}
 
--- Text that never appears in a pane: the wait only ever ends by pane death
--- (pane_not_found), its timeout (re-armed below), or being killed.
+-- Text that should not appear in a pane: the wait ends by pane death
+-- (pane_not_found), timeout (re-armed), a spurious match (re-armed — the
+-- pane is alive, e.g. an agent printed this file), or being killed.
 local SENTINEL = 'herd.nvim::never::0x7f2c'
 local TIMEOUT_MS = 600000
 
@@ -17,55 +20,28 @@ local TIMEOUT_MS = 600000
 --- from a superseded watcher sees a stale gen and does nothing.
 M.state = { gen = 0 }
 
---- Seam: run `argv` async, calling `on_done(stdout, stderr)` on exit. Returns
---- a killable handle. Tests replace this so no real herdr server is needed.
+--- Seam: run `argv` async, calling `on_done(stdout, stderr, code)` on exit.
+--- Returns a killable handle. Tests replace this so no real herdr server is
+--- needed.
 ---@param argv string[]
----@param on_done fun(stdout: string, stderr: string)
+---@param on_done fun(stdout: string, stderr: string, code: integer)
 ---@return { kill: fun(self, sig: integer) }
 function M.spawn(argv, on_done)
   return vim.system(argv, { text = true }, function(res)
-    on_done(res.stdout or '', res.stderr or '')
+    on_done(res.stdout or '', res.stderr or '', res.code)
   end)
 end
 
---- The agent's pane died: return the herdr client to nvim's tab if the user
---- was looking at the agent, and reap the tab when the agent was its only
---- pane (splits survive).
+--- The agent's pane died: reap its tab when the agent was its only pane and
+--- herdr left the tab behind (0.7.4 usually removes it first; older versions
+--- and race windows do not). Never moves focus — see the module comment.
 ---@param a herd.Agent
 local function on_pane_dead(a)
-  if not vim.env.HERDR_TAB_ID then
-    return
-  end
   local res = Herdr.api({ 'tab', 'get', a.tab_id }, { quiet = true })
   local tab = res and res.tab
-  if tab then
-    if tab.focused then
-      Herdr.run({ 'tab', 'focus', vim.env.HERDR_TAB_ID }, { quiet = true })
-    end
-    if tab.pane_count == 0 then
-      Herdr.run({ 'tab', 'close', a.tab_id }, { quiet = true })
-    end
-    return
+  if tab and tab.pane_count == 0 then
+    Herdr.run({ 'tab', 'close', a.tab_id }, { quiet = true })
   end
-  -- herdr (0.7.4) removes a tab whose only pane died before this query can
-  -- see it, so "was the user looking at the agent" can't be read off the tab.
-  -- Infer it instead: the focused workspace is still the agent's, and the
-  -- editor tab isn't focused (a return would have disarmed us via FocusGained).
-  local list = Herdr.api({ 'workspace', 'list' }, { quiet = true })
-  local focused_ws
-  for _, w in ipairs(list and list.workspaces or {}) do
-    if w.focused then
-      focused_ws = w.workspace_id
-    end
-  end
-  if focused_ws ~= a.workspace_id then
-    return
-  end
-  local own = Herdr.api({ 'tab', 'get', vim.env.HERDR_TAB_ID }, { quiet = true })
-  if own and own.tab and own.tab.focused then
-    return
-  end
-  Herdr.run({ 'tab', 'focus', vim.env.HERDR_TAB_ID }, { quiet = true })
 end
 
 --- Watch `a`'s pane, replacing any previous watcher.
@@ -76,7 +52,7 @@ function M.start(a)
   local function watch()
     M.state.handle = M.spawn(
       { 'herdr', 'wait', 'output', a.pane_id, '--match', SENTINEL, '--timeout', tostring(TIMEOUT_MS) },
-      function(stdout, stderr)
+      function(stdout, stderr, code)
         vim.schedule(function()
           if gen ~= M.state.gen then
             return -- superseded or stopped; a newer watcher owns the state
@@ -85,8 +61,11 @@ function M.start(a)
           if out:find('pane_not_found', 1, true) then
             M.state.handle = nil
             on_pane_dead(a)
-          elseif out:find('timed out', 1, true) then
-            watch() -- defensive re-arm; the wait itself is the cheap steady state
+          elseif code == 0 or out:find('timed out', 1, true) then
+            -- rc 0: the sentinel appeared in the pane (an agent printed this
+            -- file) — the pane is alive, keep watching. Timeout: defensive
+            -- re-arm; the blocking wait is the cheap steady state.
+            watch()
           else
             M.state.handle = nil -- server gone or unknown error: give up quietly
           end
