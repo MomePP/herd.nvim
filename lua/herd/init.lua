@@ -9,8 +9,19 @@ local Herdr = require('herd.herdr')
 local Target = require('herd.target')
 local Terminal = require('herd.terminal')
 local Picker = require('herd.picker')
+local Watch = require('herd.watch')
 
 local M = {}
+
+--- Native mode hands focus to the agent's herdr tab; arm the exit watcher so
+--- the client jumps back to nvim's tab if the agent process ends over there.
+---@param a herd.Agent
+local function focus_native(a)
+  Herdr.agent_focus(a.pane_id)
+  if Config.get().auto_return ~= false then
+    Watch.start(a)
+  end
+end
 
 --- Name of the agent the next action targets (validated against the live list).
 ---@type string?
@@ -45,7 +56,7 @@ local function show(a)
   -- the callback returns and is reliable from every caller, in both modes.
   vim.schedule(function()
     if Config.get().mode == 'native' then
-      Herdr.agent_focus(a.pane_id)
+      focus_native(a)
     else
       Terminal.open(a.name, { cwd = a.cwd, pane = a.pane_id })
     end
@@ -123,7 +134,7 @@ function M.toggle()
   end
   M.target = a.name
   if Config.get().mode == 'native' then
-    Herdr.agent_focus(a.pane_id)
+    focus_native(a)
   else
     Terminal.toggle(a.name, { cwd = a.cwd, pane = a.pane_id })
   end
@@ -410,6 +421,17 @@ function M.setup(opts)
         end,
       })
     end
+  end
+
+  -- Auto-return watcher lifecycle: regaining focus means the user is back in
+  -- the editor, so the armed exit watcher (if any) is no longer wanted.
+  if cfg.mode == 'native' and cfg.auto_return ~= false then
+    vim.api.nvim_create_autocmd('FocusGained', {
+      group = vim.api.nvim_create_augroup('herd_watch', { clear = true }),
+      callback = function()
+        Watch.stop()
+      end,
+    })
   end
 
   vim.api.nvim_create_user_command('Herd', function(a)

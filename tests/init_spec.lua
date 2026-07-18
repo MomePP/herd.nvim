@@ -466,6 +466,84 @@ describe('herd init', function()
     end)
   end)
 
+  it('toggle arms the exit watcher in native mode', function()
+    local saved_tab_env = vim.env.HERDR_TAB_ID
+    vim.env.HERDR_TAB_ID = 'w6:t1'
+    Herd.setup({ mode = 'native' })
+
+    local Herdr = require('herd.herdr')
+    local Watch = require('herd.watch')
+    local saved_server, saved_agents, saved_focus = Herdr.server_running, Herdr.agents, Herdr.agent_focus
+    local saved_start = Watch.start
+    Herdr.server_running = function() return true end
+    Herdr.agents = function()
+      return { { name = 'claude', pane_id = 'w6:pQ', tab_id = 'w6:t9', status = 'idle', cwd = vim.fn.getcwd() } }
+    end
+    Herdr.agent_focus = function() end
+    local watched
+    Watch.start = function(a) watched = a end
+
+    Herd.toggle()
+
+    Herdr.server_running, Herdr.agents, Herdr.agent_focus = saved_server, saved_agents, saved_focus
+    Watch.start = saved_start
+    vim.env.HERDR_TAB_ID = saved_tab_env
+
+    assert.is_truthy(watched)
+    assert.are.equal('w6:pQ', watched.pane_id)
+  end)
+
+  it('auto_return = false leaves the watcher unarmed', function()
+    local saved_tab_env = vim.env.HERDR_TAB_ID
+    vim.env.HERDR_TAB_ID = 'w6:t1'
+    Herd.setup({ mode = 'native', auto_return = false })
+
+    local Herdr = require('herd.herdr')
+    local Watch = require('herd.watch')
+    local saved_server, saved_agents, saved_focus = Herdr.server_running, Herdr.agents, Herdr.agent_focus
+    local saved_start = Watch.start
+    Herdr.server_running = function() return true end
+    Herdr.agents = function()
+      return { { name = 'claude', pane_id = 'w6:pQ', tab_id = 'w6:t9', status = 'idle', cwd = vim.fn.getcwd() } }
+    end
+    Herdr.agent_focus = function() end
+    local watched = false
+    Watch.start = function() watched = true end
+
+    Herd.toggle()
+
+    Herdr.server_running, Herdr.agents, Herdr.agent_focus = saved_server, saved_agents, saved_focus
+    Watch.start = saved_start
+    vim.env.HERDR_TAB_ID = saved_tab_env
+
+    assert.is_false(watched)
+  end)
+
+  it('FocusGained disarms the watcher in native mode (user is back)', function()
+    pcall(vim.api.nvim_del_augroup_by_name, 'herd_watch')
+    local saved_tab_env = vim.env.HERDR_TAB_ID
+    vim.env.HERDR_TAB_ID = 'w6:t1'
+    Herd.setup({ mode = 'native' })
+
+    local Watch = require('herd.watch')
+    local saved_stop = Watch.stop
+    local stopped = false
+    Watch.stop = function() stopped = true end
+    vim.api.nvim_exec_autocmds('FocusGained', { group = 'herd_watch' })
+    Watch.stop = saved_stop
+    vim.env.HERDR_TAB_ID = saved_tab_env
+
+    assert.is_true(stopped)
+  end)
+
+  it('float mode registers no herd_watch autocmd', function()
+    pcall(vim.api.nvim_del_augroup_by_name, 'herd_watch')
+    Herd.setup({ mode = 'float' })
+    assert.has_error(function()
+      vim.api.nvim_get_autocmds({ group = 'herd_watch' })
+    end)
+  end)
+
   it('float mode still registers the TermOpen and mouse-passthrough autocmds', function()
     pcall(vim.api.nvim_del_augroup_by_name, 'herd_term')
     pcall(vim.api.nvim_del_augroup_by_name, 'herd_mouse')
