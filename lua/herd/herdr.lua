@@ -262,12 +262,35 @@ end
 --- a workspace, and so `prune_workspace` can reap only *this* project's dead
 --- agent tabs via the `<project>:` label prefix (nvim's own tab is labelled
 --- just `<project>`, no trailing colon, so it is never reaped).
+--- Absolute path of bin/herd-run.sh (this file is lua/herd/herdr.lua).
+local runner = vim.fs.normalize(
+  vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(debug.getinfo(1, 'S').source:sub(2)))) .. '/bin/herd-run.sh'
+)
+
+--- Wrap `def` so the agent runs under bin/herd-run.sh: on CLI exit the shell
+--- hands focus back to `origin_tab` while the pane still exists — before
+--- herdr reaps the tab and flashes a neighbor. No origin_tab (auto_return
+--- off) or no runner → `def` passes through untouched. `def` is not mutated.
+---@param def herd.Tool
+---@param origin_tab? string editor tab to return to on agent exit
+---@return herd.Tool
+local function wrap_return(def, origin_tab)
+  if not origin_tab or vim.fn.executable(runner) ~= 1 then
+    return def
+  end
+  local cmd = { runner }
+  vim.list_extend(cmd, def.cmd)
+  local env = vim.tbl_extend('force', {}, def.env or {}, { HERD_ORIGIN_TAB = origin_tab })
+  return { cmd = cmd, env = env }
+end
+
 ---@param name string unique agent name
 ---@param cwd string
 ---@param def herd.Tool
 ---@param project string label of nvim's own tab (or cwd basename); tab prefix
+---@param origin_tab? string wrap the agent to return focus here on exit
 ---@return herd.Agent?
-function M.spawn_native(name, cwd, def, project)
+function M.spawn_native(name, cwd, def, project, origin_tab)
   local ws = vim.env.HERDR_WORKSPACE_ID
   local label = project .. ':' .. name
   local created = M.api({ 'tab', 'create', '--workspace', ws, '--cwd', cwd, '--label', label, '--no-focus' })
@@ -276,7 +299,7 @@ function M.spawn_native(name, cwd, def, project)
     return nil -- error already surfaced by Herdr.run; no safe fallback placement
   end
   local spare_pane = created.root_pane and created.root_pane.pane_id
-  local started = M.api(start_args(name, cwd, def, { '--tab', tab }))
+  local started = M.api(start_args(name, cwd, wrap_return(def, origin_tab), { '--tab', tab }))
   local agent = started and started.agent
   if agent then
     agent.tab_id = tab

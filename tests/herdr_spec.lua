@@ -220,6 +220,61 @@ describe('herd.herdr', function()
     vim.env.HERDR_WORKSPACE_ID = saved_ws
   end)
 
+  it('spawn_native wraps the cmd with herd-run.sh when given an origin tab', function()
+    local saved_ws = vim.env.HERDR_WORKSPACE_ID
+    vim.env.HERDR_WORKSPACE_ID = 'w6'
+    local calls = {}
+    local saved_api = Herdr.api
+    Herdr.api = function(args)
+      calls[#calls + 1] = args
+      if args[1] == 'tab' and args[2] == 'create' then
+        return { tab = { tab_id = 'w6:t9' }, root_pane = { pane_id = 'w6:pS' } }
+      end
+      if args[1] == 'agent' and args[2] == 'start' then
+        return { agent = { name = 'claude', pane_id = 'w6:pQ' } }
+      end
+      return {}
+    end
+
+    Herdr.spawn_native('claude', '/tmp/proj', { cmd = { 'claude', '--continue' } }, 'dotfiles', 'w6:t1')
+
+    local startcmd = table.concat(calls[2], ' ')
+    -- pre-death return trip: the agent argv is wrapped so the shell can hand
+    -- focus back to the origin tab while the pane (and its tab) still exist
+    assert.is_truthy(startcmd:find('--env HERD_ORIGIN_TAB=w6:t1', 1, true))
+    assert.is_truthy(startcmd:find('bin/herd%-run%.sh claude %-%-continue'))
+
+    Herdr.api = saved_api
+    vim.env.HERDR_WORKSPACE_ID = saved_ws
+  end)
+
+  it('spawn_native leaves the cmd unwrapped when no origin tab is given (auto_return off)', function()
+    local saved_ws = vim.env.HERDR_WORKSPACE_ID
+    vim.env.HERDR_WORKSPACE_ID = 'w6'
+    local calls = {}
+    local saved_api = Herdr.api
+    Herdr.api = function(args)
+      calls[#calls + 1] = args
+      if args[1] == 'tab' and args[2] == 'create' then
+        return { tab = { tab_id = 'w6:t9' }, root_pane = { pane_id = 'w6:pS' } }
+      end
+      if args[1] == 'agent' and args[2] == 'start' then
+        return { agent = { name = 'claude', pane_id = 'w6:pQ' } }
+      end
+      return {}
+    end
+
+    Herdr.spawn_native('claude', '/tmp/proj', { cmd = { 'claude' } }, 'dotfiles')
+
+    local startcmd = table.concat(calls[2], ' ')
+    assert.is_nil(startcmd:find('HERD_ORIGIN_TAB', 1, true))
+    assert.is_nil(startcmd:find('herd-run.sh', 1, true))
+    assert.is_truthy(startcmd:find('-- claude', 1, true))
+
+    Herdr.api = saved_api
+    vim.env.HERDR_WORKSPACE_ID = saved_ws
+  end)
+
   it('spawn_native returns nil and never starts the agent when tab creation fails', function()
     local saved_ws = vim.env.HERDR_WORKSPACE_ID
     vim.env.HERDR_WORKSPACE_ID = 'w6'

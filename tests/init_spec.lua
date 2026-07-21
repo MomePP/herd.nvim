@@ -324,9 +324,9 @@ describe('herd init', function()
     Herdr.server_running = function() return true end
     Herdr.next_name = function(tool) return tool end
     Herdr.tab_label = function(id) return id == 'w6:t1' and 'dotfiles' or nil end
-    local spawn_project
-    Herdr.spawn_native = function(name, _cwd, _def, project)
-      spawn_project = project
+    local spawn_project, spawn_origin
+    Herdr.spawn_native = function(name, _cwd, _def, project, origin_tab)
+      spawn_project, spawn_origin = project, origin_tab
       return { name = name, tab_id = 'w6:t9', pane_id = 'w6:pQ' }
     end
     local pruned
@@ -346,8 +346,42 @@ describe('herd init', function()
 
     -- agent tab named after nvim's own tab label; reaper scoped to "<project>:"
     assert.are.equal('dotfiles', spawn_project)
+    assert.are.equal('w6:t1', spawn_origin) -- auto_return on: wrapper gets the editor tab
     assert.are.same({ 'w6', 'w6:t9', 'dotfiles:' }, pruned)
     assert.are.equal('w6:pQ', focused)
+  end)
+
+  it('spawn passes no origin tab when auto_return = false (wrapper disabled)', function()
+    local saved_tab_env, saved_ws_env = vim.env.HERDR_TAB_ID, vim.env.HERDR_WORKSPACE_ID
+    vim.env.HERDR_TAB_ID, vim.env.HERDR_WORKSPACE_ID = 'w6:t1', 'w6'
+    Herd.setup({ mode = 'native', auto_return = false, tools = { claude = { cmd = { 'claude' } } } })
+
+    local Herdr = require('herd.herdr')
+    local saved_server, saved_next, saved_spawn_native, saved_prune, saved_focus, saved_label =
+      Herdr.server_running, Herdr.next_name, Herdr.spawn_native, Herdr.prune_workspace, Herdr.agent_focus, Herdr.tab_label
+    Herdr.server_running = function() return true end
+    Herdr.next_name = function(tool) return tool end
+    Herdr.tab_label = function() return 'dotfiles' end
+    local spawn_origin = 'sentinel'
+    Herdr.spawn_native = function(_name, _cwd, _def, _project, origin_tab)
+      spawn_origin = origin_tab
+      return { name = 'claude', tab_id = 'w6:t9', pane_id = 'w6:pQ' }
+    end
+    Herdr.prune_workspace = function() end
+    local focused
+    Herdr.agent_focus = function(id) focused = id end
+    local saved_notify = vim.notify
+    vim.notify = function() end
+
+    Herd.spawn('claude')
+    vim.wait(200, function() return focused ~= nil end, 5)
+
+    vim.notify = saved_notify
+    Herdr.server_running, Herdr.next_name, Herdr.spawn_native, Herdr.prune_workspace, Herdr.agent_focus, Herdr.tab_label =
+      saved_server, saved_next, saved_spawn_native, saved_prune, saved_focus, saved_label
+    vim.env.HERDR_TAB_ID, vim.env.HERDR_WORKSPACE_ID = saved_tab_env, saved_ws_env
+
+    assert.is_nil(spawn_origin)
   end)
 
   it('toggle focuses the agent tab via herdr in native mode (no float)', function()
@@ -463,6 +497,84 @@ describe('herd init', function()
     Herd.setup({ reload = false })
     assert.has_error(function()
       vim.api.nvim_get_autocmds({ group = 'herd_reload' })
+    end)
+  end)
+
+  it('toggle arms the exit watcher in native mode', function()
+    local saved_tab_env = vim.env.HERDR_TAB_ID
+    vim.env.HERDR_TAB_ID = 'w6:t1'
+    Herd.setup({ mode = 'native' })
+
+    local Herdr = require('herd.herdr')
+    local Watch = require('herd.watch')
+    local saved_server, saved_agents, saved_focus = Herdr.server_running, Herdr.agents, Herdr.agent_focus
+    local saved_start = Watch.start
+    Herdr.server_running = function() return true end
+    Herdr.agents = function()
+      return { { name = 'claude', pane_id = 'w6:pQ', tab_id = 'w6:t9', status = 'idle', cwd = vim.fn.getcwd() } }
+    end
+    Herdr.agent_focus = function() end
+    local watched
+    Watch.start = function(a) watched = a end
+
+    Herd.toggle()
+
+    Herdr.server_running, Herdr.agents, Herdr.agent_focus = saved_server, saved_agents, saved_focus
+    Watch.start = saved_start
+    vim.env.HERDR_TAB_ID = saved_tab_env
+
+    assert.is_truthy(watched)
+    assert.are.equal('w6:pQ', watched.pane_id)
+  end)
+
+  it('auto_return = false leaves the watcher unarmed', function()
+    local saved_tab_env = vim.env.HERDR_TAB_ID
+    vim.env.HERDR_TAB_ID = 'w6:t1'
+    Herd.setup({ mode = 'native', auto_return = false })
+
+    local Herdr = require('herd.herdr')
+    local Watch = require('herd.watch')
+    local saved_server, saved_agents, saved_focus = Herdr.server_running, Herdr.agents, Herdr.agent_focus
+    local saved_start = Watch.start
+    Herdr.server_running = function() return true end
+    Herdr.agents = function()
+      return { { name = 'claude', pane_id = 'w6:pQ', tab_id = 'w6:t9', status = 'idle', cwd = vim.fn.getcwd() } }
+    end
+    Herdr.agent_focus = function() end
+    local watched = false
+    Watch.start = function() watched = true end
+
+    Herd.toggle()
+
+    Herdr.server_running, Herdr.agents, Herdr.agent_focus = saved_server, saved_agents, saved_focus
+    Watch.start = saved_start
+    vim.env.HERDR_TAB_ID = saved_tab_env
+
+    assert.is_false(watched)
+  end)
+
+  it('FocusGained disarms the watcher in native mode (user is back)', function()
+    pcall(vim.api.nvim_del_augroup_by_name, 'herd_watch')
+    local saved_tab_env = vim.env.HERDR_TAB_ID
+    vim.env.HERDR_TAB_ID = 'w6:t1'
+    Herd.setup({ mode = 'native' })
+
+    local Watch = require('herd.watch')
+    local saved_stop = Watch.stop
+    local stopped = false
+    Watch.stop = function() stopped = true end
+    vim.api.nvim_exec_autocmds('FocusGained', { group = 'herd_watch' })
+    Watch.stop = saved_stop
+    vim.env.HERDR_TAB_ID = saved_tab_env
+
+    assert.is_true(stopped)
+  end)
+
+  it('float mode registers no herd_watch autocmd', function()
+    pcall(vim.api.nvim_del_augroup_by_name, 'herd_watch')
+    Herd.setup({ mode = 'float' })
+    assert.has_error(function()
+      vim.api.nvim_get_autocmds({ group = 'herd_watch' })
     end)
   end)
 
