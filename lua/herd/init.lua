@@ -75,22 +75,32 @@ function M.spawn(tool)
   if not def then
     return vim.notify('herd: unknown tool ' .. tostring(tool), vim.log.levels.ERROR)
   end
-  -- immediate feedback: the spawn below blocks on herdr's readiness
-  -- handshake (seconds for slow CLIs) before 'herd: spawned' can fire
+  -- immediate feedback: the spawn completes async, after herdr's readiness
+  -- handshake (seconds for slow CLIs), so 'herd: spawned' fires much later
   vim.notify('herd: spawning ' .. tool .. '…')
-  local agent, prune_ws, prune_prefix
+  -- completion, on the main loop, once the readiness handshake is done
+  local function done(agent, prune_ws, prune_prefix)
+    if not agent then
+      return -- error already surfaced by Herdr.run/api_async
+    end
+    if prune_ws then
+      Herdr.prune_workspace(prune_ws, agent.tab_id, prune_prefix) -- reap tabs left by killed agents
+    end
+    show(agent)
+    vim.notify('herd: spawned ' .. agent.name)
+  end
   if Config.get().mode == 'native' then
     -- name the agent tab after the project nvim sits in (nvim's own tab label,
     -- e.g. "dotfiles"; falling back to the cwd folder) → "dotfiles:claude_2".
     local project = Herdr.tab_label(vim.env.HERDR_TAB_ID)
       or vim.fn.fnamemodify(vim.fn.getcwd(), ':t')
-    agent = Herdr.spawn_native(Herdr.next_name(tool), vim.fn.getcwd(), def, project)
-    prune_ws = vim.env.HERDR_WORKSPACE_ID
-    -- reap only *this* project's dead agent tabs (the shared workspace also
-    -- holds nvim's own tab and sibling projects' tabs); float's dedicated
-    -- workspace reaps all agentless. nvim's own tab is "<project>" (no colon),
-    -- so the "<project>:" prefix never matches it.
-    prune_prefix = project .. ':'
+    Herdr.spawn_native(Herdr.next_name(tool), vim.fn.getcwd(), def, project, function(agent)
+      -- reap only *this* project's dead agent tabs (the shared workspace also
+      -- holds nvim's own tab and sibling projects' tabs); float's dedicated
+      -- workspace reaps all agentless. nvim's own tab is "<project>" (no
+      -- colon), so the "<project>:" prefix never matches it.
+      done(agent, vim.env.HERDR_WORKSPACE_ID, project .. ':')
+    end)
   else
     local ws = Herdr.ensure_workspace(Config.get().workspace)
     -- Tag the agent's tab with the originating project so the herdr sidebar reads
@@ -98,17 +108,10 @@ function M.spawn(tool)
     -- label (nvim's project), falling back to the cwd folder name.
     local project = Herdr.focused_workspace_label(Config.get().workspace)
       or vim.fn.fnamemodify(vim.fn.getcwd(), ':t')
-    agent = Herdr.spawn(Herdr.next_name(tool), vim.fn.getcwd(), def, ws, project)
-    prune_ws = ws
+    Herdr.spawn(Herdr.next_name(tool), vim.fn.getcwd(), def, ws, project, nil, function(agent)
+      done(agent, ws)
+    end)
   end
-  if not agent then
-    return -- error already surfaced by Herdr.run
-  end
-  if prune_ws then
-    Herdr.prune_workspace(prune_ws, agent.tab_id, prune_prefix) -- reap tabs left by killed agents
-  end
-  show(agent)
-  vim.notify('herd: spawned ' .. agent.name)
 end
 
 --- Toggle this cwd's agent float. With a count, target that slot. If the float

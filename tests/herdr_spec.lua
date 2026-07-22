@@ -113,20 +113,25 @@ describe('herd.herdr', function()
 
   it('spawn creates a cwd/env tab, then starts the agent by kind in its root pane', function()
     local calls = {}
-    local saved, saved_run = Herdr.api, Herdr.run
+    local saved, saved_run, saved_async = Herdr.api, Herdr.run, Herdr.api_async
     Herdr.api = function(args)
       calls[#calls + 1] = args
       if args[1] == 'tab' and args[2] == 'create' then
         return { tab = { tab_id = 'wH:t5' }, root_pane = { pane_id = 'wH:p8' } }
       end
-      if args[1] == 'agent' and args[2] == 'start' then
-        return { agent = { name = 'claude', pane_id = 'wH:p8' } }
-      end
       return {}
+    end
+    -- the readiness handshake runs async so nvim's loop stays free
+    Herdr.api_async = function(args, cb)
+      calls[#calls + 1] = args
+      cb({ agent = { name = 'claude', pane_id = 'wH:p8' } })
     end
     local focused = false
     Herdr.run = function() focused = true end
-    local agent = Herdr.spawn('claude', '/tmp/proj', { cmd = { 'claude', '--foo' }, env = { A = '1' } }, 'wH', 'dotfiles-config')
+    local agent
+    Herdr.spawn('claude', '/tmp/proj', { cmd = { 'claude', '--foo' }, env = { A = '1' } }, 'wH', 'dotfiles-config', nil, function(a)
+      agent = a
+    end)
     -- float mode: the tab lives in the hidden workspace — never focused
     assert.is_false(focused)
     -- topology + cwd + env all belong to `tab create` now (0.7.5)
@@ -152,23 +157,27 @@ describe('herd.herdr', function()
     assert.are.equal(2, #calls)
     assert.are.equal('claude', agent.name)
     assert.are.equal('wH:t5', agent.tab_id) -- backfilled from the tab-create response
-    Herdr.api, Herdr.run = saved, saved_run
+    Herdr.api, Herdr.run, Herdr.api_async = saved, saved_run, saved_async
   end)
 
   it('spawn omits --workspace and --label when not given (focused workspace)', function()
     local calls = {}
-    local saved = Herdr.api
+    local saved, saved_async = Herdr.api, Herdr.api_async
     Herdr.api = function(args)
       calls[#calls + 1] = args
       if args[1] == 'tab' and args[2] == 'create' then
         return { tab = { tab_id = 'w1:t2' }, root_pane = { pane_id = 'w1:p3' } }
       end
-      if args[1] == 'agent' and args[2] == 'start' then
-        return { agent = { name = 'claude', pane_id = 'w1:p3' } }
-      end
       return {}
     end
-    local agent = Herdr.spawn('claude', '/tmp/proj', { cmd = { 'claude' } })
+    Herdr.api_async = function(args, cb)
+      calls[#calls + 1] = args
+      cb({ agent = { name = 'claude', pane_id = 'w1:p3' } })
+    end
+    local agent
+    Herdr.spawn('claude', '/tmp/proj', { cmd = { 'claude' } }, nil, nil, nil, function(a)
+      agent = a
+    end)
     local tabcmd = table.concat(calls[1], ' ')
     assert.is_nil(tabcmd:find('--workspace'))
     assert.is_nil(tabcmd:find('--label'))
@@ -176,63 +185,76 @@ describe('herd.herdr', function()
     -- a bare cmd has no native args, so no trailing `--` separator either
     assert.is_nil(startcmd:find(' -- ', 1, true))
     assert.are.equal('claude', agent.name)
-    Herdr.api = saved
+    Herdr.api, Herdr.api_async = saved, saved_async
   end)
 
   it('spawn derives the kind from the cmd basename, def.kind overrides', function()
     local starts = {}
-    local saved = Herdr.api
+    local saved, saved_async = Herdr.api, Herdr.api_async
     Herdr.api = function(args)
       if args[1] == 'tab' and args[2] == 'create' then
         return { tab = { tab_id = 't' }, root_pane = { pane_id = 'p' } }
       end
-      if args[1] == 'agent' and args[2] == 'start' then
-        starts[#starts + 1] = table.concat(args, ' ')
-        return { agent = { name = args[3] } }
-      end
       return {}
     end
+    Herdr.api_async = function(args, cb)
+      starts[#starts + 1] = table.concat(args, ' ')
+      cb({ agent = { name = args[3] } })
+    end
     -- a full path to the CLI still resolves to its basename
-    Herdr.spawn('opencode', '/p', { cmd = { '/usr/local/bin/opencode' } })
+    Herdr.spawn('opencode', '/p', { cmd = { '/usr/local/bin/opencode' } }, nil, nil, nil, function() end)
     assert.is_truthy(starts[1]:find('--kind opencode', 1, true))
     -- a wrapper executable needs the explicit kind
-    Herdr.spawn('claude', '/p', { cmd = { '/opt/wrap/claude-yolo' }, kind = 'claude' })
+    Herdr.spawn('claude', '/p', { cmd = { '/opt/wrap/claude-yolo' }, kind = 'claude' }, nil, nil, nil, function() end)
     assert.is_truthy(starts[2]:find('--kind claude', 1, true))
-    Herdr.api = saved
+    Herdr.api, Herdr.api_async = saved, saved_async
   end)
 
-  it('spawn returns nil and never starts the agent when tab creation fails', function()
+  it('spawn hands nil to on_done and never starts the agent when tab creation fails', function()
     local calls = {}
-    local saved = Herdr.api
+    local saved, saved_async = Herdr.api, Herdr.api_async
     Herdr.api = function(args)
       calls[#calls + 1] = args
       return {} -- no `.tab`/`.root_pane` in the response
     end
-    assert.is_nil(Herdr.spawn('claude', '/tmp/proj', { cmd = { 'claude' } }, 'wH'))
-    assert.are.equal(1, #calls)
-    Herdr.api = saved
+    Herdr.api_async = function(args, cb)
+      calls[#calls + 1] = args
+      cb({})
+    end
+    local done, agent = false, nil
+    Herdr.spawn('claude', '/tmp/proj', { cmd = { 'claude' } }, 'wH', nil, nil, function(a)
+      done, agent = true, a
+    end)
+    assert.is_true(done)
+    assert.is_nil(agent)
+    assert.are.equal(1, #calls) -- only the failed tab-create call, no agent start
+    Herdr.api, Herdr.api_async = saved, saved_async
   end)
 
   it('spawn_native creates the labelled tab in the env workspace and starts the agent in its root pane', function()
     local saved_ws = vim.env.HERDR_WORKSPACE_ID
     vim.env.HERDR_WORKSPACE_ID = 'w6'
-    local ops = {} -- api AND run calls, in order
-    local saved_api, saved_run = Herdr.api, Herdr.run
+    local ops = {} -- api, run, AND api_async calls, in order
+    local saved_api, saved_run, saved_async = Herdr.api, Herdr.run, Herdr.api_async
     Herdr.api = function(args)
       ops[#ops + 1] = args
       if args[1] == 'tab' and args[2] == 'create' then
         return { tab = { tab_id = 'w6:t9' }, root_pane = { pane_id = 'w6:pS' } }
-      end
-      if args[1] == 'agent' and args[2] == 'start' then
-        return { agent = { name = 'claude', pane_id = 'w6:pS' } }
       end
       return {}
     end
     Herdr.run = function(args)
       ops[#ops + 1] = args
     end
+    Herdr.api_async = function(args, cb)
+      ops[#ops + 1] = args
+      cb({ agent = { name = 'claude', pane_id = 'w6:pS' } })
+    end
 
-    local agent = Herdr.spawn_native('claude', '/tmp/proj', { cmd = { 'claude', '--continue' } }, 'dotfiles')
+    local agent
+    Herdr.spawn_native('claude', '/tmp/proj', { cmd = { 'claude', '--continue' } }, 'dotfiles', function(a)
+      agent = a
+    end)
 
     local tabcmd = table.concat(ops[1], ' ')
     assert.are.equal('tab', ops[1][1])
@@ -258,26 +280,34 @@ describe('herd.herdr', function()
     assert.are.equal('claude', agent.name)
     assert.are.equal('w6:t9', agent.tab_id)
 
-    Herdr.api, Herdr.run = saved_api, saved_run
+    Herdr.api, Herdr.run, Herdr.api_async = saved_api, saved_run, saved_async
     vim.env.HERDR_WORKSPACE_ID = saved_ws
   end)
 
-  it('spawn_native returns nil and never starts the agent when tab creation fails', function()
+  it('spawn_native hands nil to on_done and never starts the agent when tab creation fails', function()
     local saved_ws = vim.env.HERDR_WORKSPACE_ID
     vim.env.HERDR_WORKSPACE_ID = 'w6'
     local calls = {}
-    local saved_api = Herdr.api
+    local saved_api, saved_async = Herdr.api, Herdr.api_async
     Herdr.api = function(args)
       calls[#calls + 1] = args
       return {} -- 'tab create' fails: no `.tab` in the response
     end
+    Herdr.api_async = function(args, cb)
+      calls[#calls + 1] = args
+      cb({})
+    end
 
-    local agent = Herdr.spawn_native('claude', '/tmp/proj', { cmd = { 'claude' } }, 'dotfiles')
+    local done, agent = false, nil
+    Herdr.spawn_native('claude', '/tmp/proj', { cmd = { 'claude' } }, 'dotfiles', function(a)
+      done, agent = true, a
+    end)
 
+    assert.is_true(done)
     assert.is_nil(agent)
     assert.are.equal(1, #calls) -- only the failed tab-create call, no agent start
 
-    Herdr.api = saved_api
+    Herdr.api, Herdr.api_async = saved_api, saved_async
     vim.env.HERDR_WORKSPACE_ID = saved_ws
   end)
 

@@ -325,9 +325,9 @@ describe('herd init', function()
     Herdr.next_name = function(tool) return tool end
     Herdr.tab_label = function(id) return id == 'w6:t1' and 'dotfiles' or nil end
     local spawn_project
-    Herdr.spawn_native = function(name, _cwd, _def, project)
+    Herdr.spawn_native = function(name, _cwd, _def, project, on_done)
       spawn_project = project
-      return { name = name, tab_id = 'w6:t9', pane_id = 'w6:pQ' }
+      on_done({ name = name, tab_id = 'w6:t9', pane_id = 'w6:pQ' })
     end
     local pruned
     Herdr.prune_workspace = function(ws, keep, prefix) pruned = { ws, keep, prefix } end

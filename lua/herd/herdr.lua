@@ -20,21 +20,49 @@ function M.run(args, opts)
   return res.stdout
 end
 
+--- Decode a herdr JSON envelope into its `result` table, or nil.
+--- Type guard: a bare JSON `null` decodes to vim.NIL (userdata), not a table,
+--- so `decoded.result` would throw outside the pcall. A `{"result": null}`
+--- envelope decodes to a table whose `.result` is vim.NIL — truthy in Lua, so
+--- returning it would make callers' `res and res.foo` index a userdata and
+--- throw. Normalize both to nil; every caller already treats nil as absent.
+---@param stdout string?
+---@return table?
+local function decode_result(stdout)
+  local ok, decoded = pcall(vim.json.decode, stdout or '')
+  if not (ok and type(decoded) == 'table') or decoded.result == vim.NIL then
+    return nil
+  end
+  return decoded.result
+end
+
 --- Run a herdr command and return its decoded JSON `result`, or nil.
 ---@param args string[]
 ---@param opts? { quiet?: boolean }
 ---@return table?
 function M.api(args, opts)
-  local ok, decoded = pcall(vim.json.decode, M.run(args, opts) or '')
-  -- type guard: a bare JSON `null` decodes to vim.NIL (userdata), not a table,
-  -- so `decoded.result` would throw outside the pcall. A `{"result": null}`
-  -- envelope decodes to a table whose `.result` is vim.NIL — truthy in Lua, so
-  -- returning it would make callers' `res and res.foo` index a userdata and
-  -- throw. Normalize both to nil; every caller already treats nil as absent.
-  if not (ok and type(decoded) == 'table') or decoded.result == vim.NIL then
-    return nil
-  end
-  return decoded.result
+  return decode_result(M.run(args, opts))
+end
+
+--- Async `api` for the slow calls: `agent start` blocks on the server-side
+--- readiness handshake (seconds for slow CLIs), and a :wait() there freezes
+--- nvim's UI for the duration. Runs off the main loop; `cb` gets the decoded
+--- `result` (or nil, after the same error notification `run` gives) back on
+--- the main loop.
+---@param args string[]
+---@param cb fun(res: table?)
+function M.api_async(args, cb)
+  local cmd = { 'herdr' }
+  vim.list_extend(cmd, args)
+  vim.system(cmd, { text = true }, function(res)
+    vim.schedule(function()
+      if res.code ~= 0 then
+        vim.notify('herd: ' .. (res.stderr ~= '' and res.stderr or 'herdr command failed'), vim.log.levels.ERROR)
+        return cb(nil)
+      end
+      cb(decode_result(res.stdout))
+    end)
+  end)
 end
 
 ---@return boolean
@@ -201,8 +229,9 @@ end
 ---@param workspace? string workspace id to place the agent in (default: focused)
 ---@param tab_label? string label for the agent's own tab (e.g. the project)
 ---@param focus? boolean focus the tab as soon as it exists (native mode)
----@return herd.Agent?
-function M.spawn(name, cwd, def, workspace, tab_label, focus)
+---@param on_done fun(agent: herd.Agent?) called on the main loop once the
+--- readiness handshake completes (nil on failure — error already notified)
+function M.spawn(name, cwd, def, workspace, tab_label, focus, on_done)
   local args = { 'tab', 'create', '--cwd', cwd, '--no-focus' }
   if workspace then
     vim.list_extend(args, { '--workspace', workspace })
@@ -217,7 +246,7 @@ function M.spawn(name, cwd, def, workspace, tab_label, focus)
   local tab = created and created.tab and created.tab.tab_id
   local pane = created and created.root_pane and created.root_pane.pane_id
   if not (tab and pane) then
-    return nil -- error already surfaced by Herdr.run
+    return on_done(nil) -- error already surfaced by Herdr.run
   end
   if focus then
     -- Surface the tab BEFORE the readiness handshake below: `agent start`
@@ -228,12 +257,13 @@ function M.spawn(name, cwd, def, workspace, tab_label, focus)
     -- the error notification, which is also the honest view.
     M.run({ 'tab', 'focus', tab }, { quiet = true })
   end
-  local started = M.api(start_args(name, def, pane))
-  local agent = started and started.agent
-  if agent then
-    agent.tab_id = agent.tab_id or tab
-  end
-  return agent
+  M.api_async(start_args(name, def, pane), function(started)
+    local agent = started and started.agent
+    if agent then
+      agent.tab_id = agent.tab_id or tab
+    end
+    on_done(agent)
+  end)
 end
 
 --- Label of a tab (e.g. nvim's own tab, via `$HERDR_TAB_ID`), or nil. Used to
@@ -287,9 +317,9 @@ end
 ---@param cwd string
 ---@param def herd.Tool
 ---@param project string label of nvim's own tab (or cwd basename); tab prefix
----@return herd.Agent?
-function M.spawn_native(name, cwd, def, project)
-  return M.spawn(name, cwd, def, vim.env.HERDR_WORKSPACE_ID, project .. ':' .. name, true)
+---@param on_done fun(agent: herd.Agent?) see `spawn`
+function M.spawn_native(name, cwd, def, project, on_done)
+  return M.spawn(name, cwd, def, vim.env.HERDR_WORKSPACE_ID, project .. ':' .. name, true, on_done)
 end
 
 --- argv to attach an nvim :terminal to a running agent's PTY (clean stream).
