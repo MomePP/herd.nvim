@@ -75,6 +75,9 @@ function M.spawn(tool)
   if not def then
     return vim.notify('herd: unknown tool ' .. tostring(tool), vim.log.levels.ERROR)
   end
+  -- immediate feedback: the spawn below blocks on herdr's readiness
+  -- handshake (seconds for slow CLIs) before 'herd: spawned' can fire
+  vim.notify('herd: spawning ' .. tool .. '…')
   local agent, prune_ws, prune_prefix
   if Config.get().mode == 'native' then
     -- name the agent tab after the project nvim sits in (nvim's own tab label,

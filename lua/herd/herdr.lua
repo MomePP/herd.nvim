@@ -200,8 +200,9 @@ end
 ---@param def herd.Tool
 ---@param workspace? string workspace id to place the agent in (default: focused)
 ---@param tab_label? string label for the agent's own tab (e.g. the project)
+---@param focus? boolean focus the tab as soon as it exists (native mode)
 ---@return herd.Agent?
-function M.spawn(name, cwd, def, workspace, tab_label)
+function M.spawn(name, cwd, def, workspace, tab_label, focus)
   local args = { 'tab', 'create', '--cwd', cwd, '--no-focus' }
   if workspace then
     vim.list_extend(args, { '--workspace', workspace })
@@ -217,6 +218,15 @@ function M.spawn(name, cwd, def, workspace, tab_label)
   local pane = created and created.root_pane and created.root_pane.pane_id
   if not (tab and pane) then
     return nil -- error already surfaced by Herdr.run
+  end
+  if focus then
+    -- Surface the tab BEFORE the readiness handshake below: `agent start`
+    -- blocks until the CLI is detected interactive-ready (seconds for slow
+    -- tools), and watching it boot in its own tab is the feedback that the
+    -- spawn is happening — the pre-0.7.5 timing, when `agent start` returned
+    -- immediately. On a failed start the user is left on the shell tab with
+    -- the error notification, which is also the honest view.
+    M.run({ 'tab', 'focus', tab }, { quiet = true })
   end
   local started = M.api(start_args(name, def, pane))
   local agent = started and started.agent
@@ -279,7 +289,7 @@ end
 ---@param project string label of nvim's own tab (or cwd basename); tab prefix
 ---@return herd.Agent?
 function M.spawn_native(name, cwd, def, project)
-  return M.spawn(name, cwd, def, vim.env.HERDR_WORKSPACE_ID, project .. ':' .. name)
+  return M.spawn(name, cwd, def, vim.env.HERDR_WORKSPACE_ID, project .. ':' .. name, true)
 end
 
 --- argv to attach an nvim :terminal to a running agent's PTY (clean stream).

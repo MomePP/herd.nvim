@@ -334,7 +334,8 @@ describe('herd init', function()
     local focused
     Herdr.agent_focus = function(id) focused = id end
     local saved_notify = vim.notify
-    vim.notify = function() end
+    local msgs = {}
+    vim.notify = function(m) msgs[#msgs + 1] = m end
 
     Herd.spawn('claude')
     vim.wait(200, function() return focused ~= nil end, 5) -- show() defers via vim.schedule
@@ -348,6 +349,9 @@ describe('herd init', function()
     assert.are.equal('dotfiles', spawn_project)
     assert.are.same({ 'w6', 'w6:t9', 'dotfiles:' }, pruned)
     assert.are.equal('w6:pQ', focused)
+    -- immediate feedback BEFORE the blocking spawn, completion after
+    assert.is_truthy(msgs[1]:find('spawning claude', 1, true))
+    assert.is_truthy(msgs[2]:find('spawned claude', 1, true))
   end)
 
   it('toggle focuses the agent tab via herdr in native mode (no float)', function()

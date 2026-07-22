@@ -113,7 +113,7 @@ describe('herd.herdr', function()
 
   it('spawn creates a cwd/env tab, then starts the agent by kind in its root pane', function()
     local calls = {}
-    local saved = Herdr.api
+    local saved, saved_run = Herdr.api, Herdr.run
     Herdr.api = function(args)
       calls[#calls + 1] = args
       if args[1] == 'tab' and args[2] == 'create' then
@@ -124,7 +124,11 @@ describe('herd.herdr', function()
       end
       return {}
     end
+    local focused = false
+    Herdr.run = function() focused = true end
     local agent = Herdr.spawn('claude', '/tmp/proj', { cmd = { 'claude', '--foo' }, env = { A = '1' } }, 'wH', 'dotfiles-config')
+    -- float mode: the tab lives in the hidden workspace — never focused
+    assert.is_false(focused)
     -- topology + cwd + env all belong to `tab create` now (0.7.5)
     local tabcmd = table.concat(calls[1], ' ')
     assert.are.equal('tab', calls[1][1])
@@ -148,7 +152,7 @@ describe('herd.herdr', function()
     assert.are.equal(2, #calls)
     assert.are.equal('claude', agent.name)
     assert.are.equal('wH:t5', agent.tab_id) -- backfilled from the tab-create response
-    Herdr.api = saved
+    Herdr.api, Herdr.run = saved, saved_run
   end)
 
   it('spawn omits --workspace and --label when not given (focused workspace)', function()
@@ -212,10 +216,10 @@ describe('herd.herdr', function()
   it('spawn_native creates the labelled tab in the env workspace and starts the agent in its root pane', function()
     local saved_ws = vim.env.HERDR_WORKSPACE_ID
     vim.env.HERDR_WORKSPACE_ID = 'w6'
-    local calls = {}
-    local saved_api = Herdr.api
+    local ops = {} -- api AND run calls, in order
+    local saved_api, saved_run = Herdr.api, Herdr.run
     Herdr.api = function(args)
-      calls[#calls + 1] = args
+      ops[#ops + 1] = args
       if args[1] == 'tab' and args[2] == 'create' then
         return { tab = { tab_id = 'w6:t9' }, root_pane = { pane_id = 'w6:pS' } }
       end
@@ -224,30 +228,37 @@ describe('herd.herdr', function()
       end
       return {}
     end
+    Herdr.run = function(args)
+      ops[#ops + 1] = args
+    end
 
     local agent = Herdr.spawn_native('claude', '/tmp/proj', { cmd = { 'claude', '--continue' } }, 'dotfiles')
 
-    local tabcmd = table.concat(calls[1], ' ')
-    assert.are.equal('tab', calls[1][1])
-    assert.are.equal('create', calls[1][2])
+    local tabcmd = table.concat(ops[1], ' ')
+    assert.are.equal('tab', ops[1][1])
+    assert.are.equal('create', ops[1][2])
     assert.is_truthy(tabcmd:find('--workspace w6', 1, true))
     assert.is_truthy(tabcmd:find('--label dotfiles:claude', 1, true))
     assert.is_truthy(tabcmd:find('--cwd /tmp/proj', 1, true))
     assert.is_truthy(tabcmd:find('--no-focus', 1, true))
 
-    local startcmd = table.concat(calls[2], ' ')
+    -- the tab is focused BEFORE the blocking `agent start` readiness
+    -- handshake, so the user watches the CLI boot instead of a frozen editor
+    assert.are.same({ 'tab', 'focus', 'w6:t9' }, ops[2])
+
+    local startcmd = table.concat(ops[3], ' ')
     assert.is_truthy(startcmd:find('agent start claude', 1, true))
     assert.is_truthy(startcmd:find('--kind claude', 1, true))
     assert.is_truthy(startcmd:find('--pane w6:pS', 1, true))
     assert.is_truthy(startcmd:find('-- --continue', 1, true))
 
     -- the root pane IS the agent's pane: nothing spare to close
-    assert.are.equal(2, #calls)
+    assert.are.equal(3, #ops)
 
     assert.are.equal('claude', agent.name)
     assert.are.equal('w6:t9', agent.tab_id)
 
-    Herdr.api = saved_api
+    Herdr.api, Herdr.run = saved_api, saved_run
     vim.env.HERDR_WORKSPACE_ID = saved_ws
   end)
 
