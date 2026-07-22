@@ -59,7 +59,7 @@ drag-select)? See [Native mode](#-native-mode) below.
 
 | Key | Mode | Action |
 | --- | --- | --- |
-| `<leader>\` | normal | Toggle this cwd's agent float. `<count><key>` targets slot N; an **empty slot spawns the inferred tool's next clone** (inferred from current target, first project agent, or sole configured tool — else opens the picker). |
+| `<leader>\` | normal | Toggle this cwd's agent float. `<count><key>` targets slot N; an **empty slot opens the picker** to choose which tool to spawn. |
 | `<leader>\` | visual | Send the selection to the active agent (no Enter — the float opens so you can review and submit). By default the selection is wrapped with its `path:line-range` and a filetype fence so the agent knows where the code lives — see `send.context`. |
 | `<leader>\` | terminal | Hide the float from inside the agent. |
 | `<leader>s` | normal | Grouped picker (**current project only**): switch to a running agent or spawn a configured tool. Rows show `name  [status]`. |
