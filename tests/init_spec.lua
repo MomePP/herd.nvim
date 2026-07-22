@@ -378,30 +378,6 @@ describe('herd init', function()
     assert.is_false(toggled)
   end)
 
-  it('counted toggle on an empty slot opens the picker instead of auto-spawning', function()
-    -- a sole configured tool is the strongest auto-spawn case the old
-    -- inference had — the picker must open even then
-    Herd.setup({ tools = { claude = { cmd = { 'claude' } } } })
-
-    local Herdr = require('herd.herdr')
-    local Picker = require('herd.picker')
-    local saved_server, saved_agents = Herdr.server_running, Herdr.agents
-    local saved_open = Picker.open
-    Herdr.server_running = function() return true end
-    Herdr.agents = function()
-      return { { name = 'claude', pane_id = 'w6:pQ', tab_id = 'w6:t9', status = 'idle', cwd = vim.fn.getcwd() } }
-    end
-    local picked = false
-    Picker.open = function() picked = true end
-
-    Herd.toggle(2) -- slot 2 is empty (only one agent runs here)
-
-    Herdr.server_running, Herdr.agents = saved_server, saved_agents
-    Picker.open = saved_open
-
-    assert.is_true(picked)
-  end)
-
   it('dashboard opens the global agent picker in native mode', function()
     local saved_env = vim.env.HERDR_TAB_ID
     vim.env.HERDR_TAB_ID = 'w6:t1'

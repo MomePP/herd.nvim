@@ -104,8 +104,10 @@ Options ~                                                       *herd-config*
 MAPPINGS                                                      *herd-mappings*
 
     <leader>\       (normal)    Toggle this cwd's agent float. <count><key> targets
-                                slot N. An empty slot opens the picker to choose
-                                which tool to spawn. Falls back to picker when no
+                                slot N. An empty slot spawns the inferred tool's
+                                next clone (inferred: current target's base →
+                                first project agent's base → sole configured tool
+                                → else picker). Falls back to picker when no
                                 agent runs here.
     <leader>\       (visual)    Send selection to the active agent (no Enter
                                 appended). The float opens so you can review

@@ -111,18 +111,22 @@ end
 --- Toggle this cwd's agent float. With a count, target that slot. If the float
 --- is already open for the resolved target, hide it; if no agent runs here,
 --- open the picker.
----@param count? integer slot to target (default: vim.v.count — seam for tests)
-function M.toggle(count)
+function M.toggle()
   if not ensure_server() then
     return
   end
-  count = count or vim.v.count
+  local count = vim.v.count
   local agents = Herdr.agents()
   local a
   if count > 0 then
     a = Target.by_slot(agents, cwd(), count)
     if not a then
-      return M.select() -- empty slot: pick the tool to spawn (or switch)
+      -- empty slot: spawn the next clone of the inferred tool, else fall to the picker
+      local base = Target.infer_base(agents, cwd(), M.target, Config.get().tools)
+      if base then
+        return M.spawn(base)
+      end
+      return M.select()
     end
   else
     a = Target.current(agents, cwd(), M.target)
