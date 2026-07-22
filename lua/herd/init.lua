@@ -15,11 +15,13 @@ local M = {}
 
 --- Native mode hands focus to the agent's herdr tab; arm the exit watcher so
 --- the client jumps back to nvim's tab if the agent process ends over there.
+--- The watcher owns the whole return trip (herdr ≥ 0.7.5: the agent's pane
+--- outlives the agent), so it gets the editor tab to return to.
 ---@param a herd.Agent
 local function focus_native(a)
   Herdr.agent_focus(a.pane_id)
   if Config.get().auto_return ~= false then
-    Watch.start(a)
+    Watch.start(a, vim.env.HERDR_TAB_ID)
   end
 end
 
@@ -79,10 +81,7 @@ function M.spawn(tool)
     -- e.g. "dotfiles"; falling back to the cwd folder) → "dotfiles:claude_2".
     local project = Herdr.tab_label(vim.env.HERDR_TAB_ID)
       or vim.fn.fnamemodify(vim.fn.getcwd(), ':t')
-    -- auto_return: hand the wrapper the editor tab so the agent returns focus
-    -- here on exit (checked pre-death, in the agent's own pane)
-    local origin = Config.get().auto_return ~= false and vim.env.HERDR_TAB_ID or nil
-    agent = Herdr.spawn_native(Herdr.next_name(tool), vim.fn.getcwd(), def, project, origin)
+    agent = Herdr.spawn_native(Herdr.next_name(tool), vim.fn.getcwd(), def, project)
     prune_ws = vim.env.HERDR_WORKSPACE_ID
     -- reap only *this* project's dead agent tabs (the shared workspace also
     -- holds nvim's own tab and sibling projects' tabs); float's dedicated

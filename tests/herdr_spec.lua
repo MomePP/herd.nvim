@@ -69,12 +69,12 @@ describe('herd.herdr', function()
     Herdr.api = saved
   end)
 
-  it('agent_send shells the literal-text send command', function()
+  it('agent_send shells the literal-text pane send-text command', function()
     local got
     local saved = Herdr.run
     Herdr.run = function(args) got = args; return '' end
-    Herdr.agent_send('claude', 'hello world')
-    assert.are.same({ 'agent', 'send', 'claude', 'hello world' }, got)
+    Herdr.agent_send('w6:pQ', 'hello world')
+    assert.are.same({ 'pane', 'send-text', 'w6:pQ', 'hello world' }, got)
     Herdr.run = saved
   end)
 
@@ -111,72 +111,105 @@ describe('herd.herdr', function()
     Herdr.api = saved
   end)
 
-  it('spawn places the agent in the given workspace (no --split)', function()
-    local got
-    local saved = Herdr.api
-    Herdr.api = function(args) got = args; return { agent = { name = 'claude' } } end
-    Herdr.spawn('claude', '/tmp/proj', { cmd = { 'claude', '--foo' }, env = { A = '1' } }, 'wH')
-    local joined = table.concat(got, ' ')
-    assert.is_nil(joined:find('--split'))
-    assert.is_truthy(joined:find('agent start claude', 1, true))
-    assert.is_truthy(joined:find('--cwd /tmp/proj', 1, true))
-    assert.is_truthy(joined:find('--no-focus', 1, true))
-    assert.is_truthy(joined:find('--workspace wH', 1, true))
-    assert.is_truthy(joined:find('--env A=1', 1, true))
-    assert.is_truthy(joined:find('-- claude --foo', 1, true))
-    Herdr.api = saved
-  end)
-
-  it('spawn omits --workspace and still spawns when no workspace is given', function()
-    local got
-    local saved = Herdr.api
-    Herdr.api = function(args) got = args; return { agent = { name = 'claude' } } end
-    local agent = Herdr.spawn('claude', '/tmp/proj', { cmd = { 'claude' } })
-    local joined = table.concat(got, ' ')
-    assert.is_nil(joined:find('--workspace'))
-    assert.is_nil(joined:find('--split'))
-    assert.is_truthy(joined:find('agent start claude', 1, true))
-    assert.is_truthy(joined:find('-- claude', 1, true))
-    assert.are.equal('claude', agent.name)
-    Herdr.api = saved
-  end)
-
-  it('spawn creates a labelled tab and starts the agent in it (not --workspace)', function()
+  it('spawn creates a cwd/env tab, then starts the agent by kind in its root pane', function()
     local calls = {}
     local saved = Herdr.api
     Herdr.api = function(args)
       calls[#calls + 1] = args
       if args[1] == 'tab' and args[2] == 'create' then
-        return { tab = { tab_id = 'wH:t5' } }
+        return { tab = { tab_id = 'wH:t5' }, root_pane = { pane_id = 'wH:p8' } }
       end
       if args[1] == 'agent' and args[2] == 'start' then
-        return { agent = { name = 'claude', pane_id = 'wH:p9' } }
-      end
-      if args[1] == 'pane' and args[2] == 'list' then
-        return { panes = {
-          { pane_id = 'wH:p9', tab_id = 'wH:t5' }, -- the agent
-          { pane_id = 'wH:p8', tab_id = 'wH:t5' }, -- the spare initial pane
-        } }
+        return { agent = { name = 'claude', pane_id = 'wH:p8' } }
       end
       return {}
     end
-    Herdr.spawn('claude', '/tmp/proj', { cmd = { 'claude' } }, 'wH', 'dotfiles-config')
+    local agent = Herdr.spawn('claude', '/tmp/proj', { cmd = { 'claude', '--foo' }, env = { A = '1' } }, 'wH', 'dotfiles-config')
+    -- topology + cwd + env all belong to `tab create` now (0.7.5)
     local tabcmd = table.concat(calls[1], ' ')
     assert.are.equal('tab', calls[1][1])
     assert.are.equal('create', calls[1][2])
     assert.is_truthy(tabcmd:find('--workspace wH', 1, true))
+    assert.is_truthy(tabcmd:find('--cwd /tmp/proj', 1, true))
     assert.is_truthy(tabcmd:find('--label dotfiles-config', 1, true))
+    assert.is_truthy(tabcmd:find('--no-focus', 1, true))
+    assert.is_truthy(tabcmd:find('--env A=1', 1, true))
+    -- `agent start` only names the kind, targets the tab's root pane, and
+    -- forwards the native args after `--`
     local startcmd = table.concat(calls[2], ' ')
-    assert.is_truthy(startcmd:find('--tab wH:t5', 1, true))
-    assert.is_nil(startcmd:find('--workspace')) -- placed via --tab, not --workspace
-    assert.is_nil(startcmd:find('--split'))
-    -- the spare pane in the tab (≠ the agent's) is closed; the agent's is kept
-    assert.are.same({ 'pane', 'list', '--workspace', 'wH' }, calls[3])
-    assert.are.same({ 'pane', 'close', 'wH:p8' }, calls[4])
+    assert.is_truthy(startcmd:find('agent start claude', 1, true))
+    assert.is_truthy(startcmd:find('--kind claude', 1, true))
+    assert.is_truthy(startcmd:find('--pane wH:p8', 1, true))
+    assert.is_truthy(startcmd:find('-- --foo', 1, true))
+    assert.is_nil(startcmd:find('--cwd'))
+    assert.is_nil(startcmd:find('--env'))
+    assert.is_nil(startcmd:find('--no-focus'))
+    -- the root pane IS the agent's pane: no spare-pane list/close round trips
+    assert.are.equal(2, #calls)
+    assert.are.equal('claude', agent.name)
+    assert.are.equal('wH:t5', agent.tab_id) -- backfilled from the tab-create response
     Herdr.api = saved
   end)
 
-  it('spawn_native creates a tab in the env workspace, starts the agent, and closes the spare pane via the tab-create response (no pane list)', function()
+  it('spawn omits --workspace and --label when not given (focused workspace)', function()
+    local calls = {}
+    local saved = Herdr.api
+    Herdr.api = function(args)
+      calls[#calls + 1] = args
+      if args[1] == 'tab' and args[2] == 'create' then
+        return { tab = { tab_id = 'w1:t2' }, root_pane = { pane_id = 'w1:p3' } }
+      end
+      if args[1] == 'agent' and args[2] == 'start' then
+        return { agent = { name = 'claude', pane_id = 'w1:p3' } }
+      end
+      return {}
+    end
+    local agent = Herdr.spawn('claude', '/tmp/proj', { cmd = { 'claude' } })
+    local tabcmd = table.concat(calls[1], ' ')
+    assert.is_nil(tabcmd:find('--workspace'))
+    assert.is_nil(tabcmd:find('--label'))
+    local startcmd = table.concat(calls[2], ' ')
+    -- a bare cmd has no native args, so no trailing `--` separator either
+    assert.is_nil(startcmd:find(' -- ', 1, true))
+    assert.are.equal('claude', agent.name)
+    Herdr.api = saved
+  end)
+
+  it('spawn derives the kind from the cmd basename, def.kind overrides', function()
+    local starts = {}
+    local saved = Herdr.api
+    Herdr.api = function(args)
+      if args[1] == 'tab' and args[2] == 'create' then
+        return { tab = { tab_id = 't' }, root_pane = { pane_id = 'p' } }
+      end
+      if args[1] == 'agent' and args[2] == 'start' then
+        starts[#starts + 1] = table.concat(args, ' ')
+        return { agent = { name = args[3] } }
+      end
+      return {}
+    end
+    -- a full path to the CLI still resolves to its basename
+    Herdr.spawn('opencode', '/p', { cmd = { '/usr/local/bin/opencode' } })
+    assert.is_truthy(starts[1]:find('--kind opencode', 1, true))
+    -- a wrapper executable needs the explicit kind
+    Herdr.spawn('claude', '/p', { cmd = { '/opt/wrap/claude-yolo' }, kind = 'claude' })
+    assert.is_truthy(starts[2]:find('--kind claude', 1, true))
+    Herdr.api = saved
+  end)
+
+  it('spawn returns nil and never starts the agent when tab creation fails', function()
+    local calls = {}
+    local saved = Herdr.api
+    Herdr.api = function(args)
+      calls[#calls + 1] = args
+      return {} -- no `.tab`/`.root_pane` in the response
+    end
+    assert.is_nil(Herdr.spawn('claude', '/tmp/proj', { cmd = { 'claude' } }, 'wH'))
+    assert.are.equal(1, #calls)
+    Herdr.api = saved
+  end)
+
+  it('spawn_native creates the labelled tab in the env workspace and starts the agent in its root pane', function()
     local saved_ws = vim.env.HERDR_WORKSPACE_ID
     vim.env.HERDR_WORKSPACE_ID = 'w6'
     local calls = {}
@@ -187,12 +220,12 @@ describe('herd.herdr', function()
         return { tab = { tab_id = 'w6:t9' }, root_pane = { pane_id = 'w6:pS' } }
       end
       if args[1] == 'agent' and args[2] == 'start' then
-        return { agent = { name = 'claude', pane_id = 'w6:pQ' } }
+        return { agent = { name = 'claude', pane_id = 'w6:pS' } }
       end
       return {}
     end
 
-    local agent = Herdr.spawn_native('claude', '/tmp/proj', { cmd = { 'claude' } }, 'dotfiles')
+    local agent = Herdr.spawn_native('claude', '/tmp/proj', { cmd = { 'claude', '--continue' } }, 'dotfiles')
 
     local tabcmd = table.concat(calls[1], ' ')
     assert.are.equal('tab', calls[1][1])
@@ -204,72 +237,15 @@ describe('herd.herdr', function()
 
     local startcmd = table.concat(calls[2], ' ')
     assert.is_truthy(startcmd:find('agent start claude', 1, true))
-    assert.is_truthy(startcmd:find('--tab w6:t9', 1, true))
-    assert.is_nil(startcmd:find('--workspace'))
-    assert.is_nil(startcmd:find('--split'))
+    assert.is_truthy(startcmd:find('--kind claude', 1, true))
+    assert.is_truthy(startcmd:find('--pane w6:pS', 1, true))
+    assert.is_truthy(startcmd:find('-- --continue', 1, true))
 
-    -- the spare pane id came straight from the tab-create response — no
-    -- follow-up `pane list` round trip, unlike float mode's M.spawn.
-    assert.are.same({ 'pane', 'close', 'w6:pS' }, calls[3])
-    assert.are.equal(3, #calls)
+    -- the root pane IS the agent's pane: nothing spare to close
+    assert.are.equal(2, #calls)
 
     assert.are.equal('claude', agent.name)
     assert.are.equal('w6:t9', agent.tab_id)
-
-    Herdr.api = saved_api
-    vim.env.HERDR_WORKSPACE_ID = saved_ws
-  end)
-
-  it('spawn_native wraps the cmd with herd-run.sh when given an origin tab', function()
-    local saved_ws = vim.env.HERDR_WORKSPACE_ID
-    vim.env.HERDR_WORKSPACE_ID = 'w6'
-    local calls = {}
-    local saved_api = Herdr.api
-    Herdr.api = function(args)
-      calls[#calls + 1] = args
-      if args[1] == 'tab' and args[2] == 'create' then
-        return { tab = { tab_id = 'w6:t9' }, root_pane = { pane_id = 'w6:pS' } }
-      end
-      if args[1] == 'agent' and args[2] == 'start' then
-        return { agent = { name = 'claude', pane_id = 'w6:pQ' } }
-      end
-      return {}
-    end
-
-    Herdr.spawn_native('claude', '/tmp/proj', { cmd = { 'claude', '--continue' } }, 'dotfiles', 'w6:t1')
-
-    local startcmd = table.concat(calls[2], ' ')
-    -- pre-death return trip: the agent argv is wrapped so the shell can hand
-    -- focus back to the origin tab while the pane (and its tab) still exist
-    assert.is_truthy(startcmd:find('--env HERD_ORIGIN_TAB=w6:t1', 1, true))
-    assert.is_truthy(startcmd:find('bin/herd%-run%.sh claude %-%-continue'))
-
-    Herdr.api = saved_api
-    vim.env.HERDR_WORKSPACE_ID = saved_ws
-  end)
-
-  it('spawn_native leaves the cmd unwrapped when no origin tab is given (auto_return off)', function()
-    local saved_ws = vim.env.HERDR_WORKSPACE_ID
-    vim.env.HERDR_WORKSPACE_ID = 'w6'
-    local calls = {}
-    local saved_api = Herdr.api
-    Herdr.api = function(args)
-      calls[#calls + 1] = args
-      if args[1] == 'tab' and args[2] == 'create' then
-        return { tab = { tab_id = 'w6:t9' }, root_pane = { pane_id = 'w6:pS' } }
-      end
-      if args[1] == 'agent' and args[2] == 'start' then
-        return { agent = { name = 'claude', pane_id = 'w6:pQ' } }
-      end
-      return {}
-    end
-
-    Herdr.spawn_native('claude', '/tmp/proj', { cmd = { 'claude' } }, 'dotfiles')
-
-    local startcmd = table.concat(calls[2], ' ')
-    assert.is_nil(startcmd:find('HERD_ORIGIN_TAB', 1, true))
-    assert.is_nil(startcmd:find('herd-run.sh', 1, true))
-    assert.is_truthy(startcmd:find('-- claude', 1, true))
 
     Herdr.api = saved_api
     vim.env.HERDR_WORKSPACE_ID = saved_ws

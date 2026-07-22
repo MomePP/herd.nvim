@@ -162,56 +162,66 @@ function M.focused_workspace_label(exclude)
   return nil
 end
 
---- Build `agent start` argv: base flags + `placement` (the flags that position
---- the agent — `{'--tab', id}`, `{'--workspace', id}`, or `{}` for the default
---- workspace) + one `--env` per `def.env` entry + `-- <cmd>`.
----@param name string unique agent name
----@param cwd string
+--- The herdr agent kind for `def`: explicit `def.kind`, else the basename of
+--- the executable (a plain `claude` or `/usr/local/bin/opencode` both resolve;
+--- a wrapper binary whose name isn't a supported kind needs `def.kind`).
 ---@param def herd.Tool
----@param placement string[]
+---@return string
+local function tool_kind(def)
+  return def.kind or vim.fs.basename(def.cmd[1])
+end
+
+--- Build `agent start` argv (herdr ≥ 0.7.5): the agent is started by kind in
+--- an existing pane; anything after `--` is passed to the CLI natively. cwd
+--- and env are the pane's (set at `tab create`), not flags here.
+---@param name string unique agent name
+---@param def herd.Tool
+---@param pane string pane id at a shell prompt (the tab's root pane)
 ---@return string[]
-local function start_args(name, cwd, def, placement)
-  local args = { 'agent', 'start', name, '--cwd', cwd, '--no-focus' }
-  vim.list_extend(args, placement)
-  for k, v in pairs(def.env or {}) do
-    vim.list_extend(args, { '--env', ('%s=%s'):format(k, tostring(v)) })
+local function start_args(name, def, pane)
+  local args = { 'agent', 'start', name, '--kind', tool_kind(def), '--pane', pane }
+  if #def.cmd > 1 then
+    args[#args + 1] = '--'
+    for i = 2, #def.cmd do
+      args[#args + 1] = def.cmd[i]
+    end
   end
-  args[#args + 1] = '--'
-  vim.list_extend(args, def.cmd)
   return args
 end
 
 --- Spawn an agent in the herdr server, placed in `workspace` (off nvim's view)
---- when given. When `tab_label` is also given the agent gets its own labelled
---- tab in that workspace, so the herdr sidebar reads "<workspace> · <project>"
---- instead of just the bare workspace. nvim hosts; the agent is only ever seen
---- through the float that attaches to it.
+--- when given, labelled `tab_label` when given. The tab carries the cwd and
+--- `def.env` (its shell inherits them, and so does the agent), and its root
+--- pane is where the agent starts — the agent fills the tab, nothing spare to
+--- close. nvim hosts; the agent is only ever seen through the float that
+--- attaches to it.
 ---@param name string unique agent name
 ---@param cwd string
 ---@param def herd.Tool
----@param workspace? string workspace id to place the agent in
+---@param workspace? string workspace id to place the agent in (default: focused)
 ---@param tab_label? string label for the agent's own tab (e.g. the project)
 ---@return herd.Agent?
 function M.spawn(name, cwd, def, workspace, tab_label)
-  local tab
-  if workspace and tab_label then
-    local res = M.api({ 'tab', 'create', '--workspace', workspace, '--no-focus', '--cwd', cwd, '--label', tab_label })
-    tab = res and res.tab and res.tab.tab_id
+  local args = { 'tab', 'create', '--cwd', cwd, '--no-focus' }
+  if workspace then
+    vim.list_extend(args, { '--workspace', workspace })
   end
-  local placement = tab and { '--tab', tab } or workspace and { '--workspace', workspace } or {}
-  local started = M.api(start_args(name, cwd, def, placement))
+  if tab_label then
+    vim.list_extend(args, { '--label', tab_label })
+  end
+  for k, v in pairs(def.env or {}) do
+    vim.list_extend(args, { '--env', ('%s=%s'):format(k, tostring(v)) })
+  end
+  local created = M.api(args)
+  local tab = created and created.tab and created.tab.tab_id
+  local pane = created and created.root_pane and created.root_pane.pane_id
+  if not (tab and pane) then
+    return nil -- error already surfaced by Herdr.run
+  end
+  local started = M.api(start_args(name, def, pane))
   local agent = started and started.agent
-  -- `tab create` leaves an empty initial pane, so `agent start --tab` lands the
-  -- agent as a *second* pane (a split). Close that spare pane so the agent is the
-  -- sole pane — it then fills the tab (fullscreen in herdr) and the tab label
-  -- shows in the sidebar, without zooming (which steals focus out of nvim).
-  if agent and tab and workspace and agent.pane_id then
-    local panes = M.api({ 'pane', 'list', '--workspace', workspace })
-    for _, p in ipairs(panes and panes.panes or {}) do
-      if p.tab_id == tab and p.pane_id ~= agent.pane_id then
-        M.api({ 'pane', 'close', p.pane_id })
-      end
-    end
+  if agent then
+    agent.tab_id = agent.tab_id or tab
   end
   return agent
 end
@@ -251,63 +261,25 @@ function M.tab_labels()
 end
 
 --- Spawn an agent as a sibling herdr tab in nvim's own workspace (native
---- mode) instead of a dedicated hidden workspace: `tab create` (no explicit
---- `--workspace`; caller's `$HERDR_WORKSPACE_ID`, so the tab lands in the
---- real project workspace nvim's own pane already lives in) → `agent start
---- --tab` → close the spare pane the tab was created with, using the pane id
---- `tab create` already returned (no `pane list` round trip needed).
+--- mode) instead of a dedicated hidden workspace: the caller's
+--- `$HERDR_WORKSPACE_ID`, so the tab lands in the real project workspace
+--- nvim's own pane already lives in.
 ---
 --- The tab is labelled `<project>:<name>` (e.g. `dotfiles:claude_2`) so the
 --- herdr sidebar shows which project's agent it is when several projects share
 --- a workspace, and so `prune_workspace` can reap only *this* project's dead
 --- agent tabs via the `<project>:` label prefix (nvim's own tab is labelled
 --- just `<project>`, no trailing colon, so it is never reaped).
---- Absolute path of bin/herd-run.sh (this file is lua/herd/herdr.lua).
-local runner = vim.fs.normalize(
-  vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(debug.getinfo(1, 'S').source:sub(2)))) .. '/bin/herd-run.sh'
-)
-
---- Wrap `def` so the agent runs under bin/herd-run.sh: on CLI exit the shell
---- hands focus back to `origin_tab` while the pane still exists — before
---- herdr reaps the tab and flashes a neighbor. No origin_tab (auto_return
---- off) or no runner → `def` passes through untouched. `def` is not mutated.
----@param def herd.Tool
----@param origin_tab? string editor tab to return to on agent exit
----@return herd.Tool
-local function wrap_return(def, origin_tab)
-  if not origin_tab or vim.fn.executable(runner) ~= 1 then
-    return def
-  end
-  local cmd = { runner }
-  vim.list_extend(cmd, def.cmd)
-  local env = vim.tbl_extend('force', {}, def.env or {}, { HERD_ORIGIN_TAB = origin_tab })
-  return { cmd = cmd, env = env }
-end
-
+---
+--- The return trip on agent exit belongs to herd.watch (the agent's pane
+--- outlives the agent on herdr ≥ 0.7.5, so it is decidable post-exit).
 ---@param name string unique agent name
 ---@param cwd string
 ---@param def herd.Tool
 ---@param project string label of nvim's own tab (or cwd basename); tab prefix
----@param origin_tab? string wrap the agent to return focus here on exit
 ---@return herd.Agent?
-function M.spawn_native(name, cwd, def, project, origin_tab)
-  local ws = vim.env.HERDR_WORKSPACE_ID
-  local label = project .. ':' .. name
-  local created = M.api({ 'tab', 'create', '--workspace', ws, '--cwd', cwd, '--label', label, '--no-focus' })
-  local tab = created and created.tab and created.tab.tab_id
-  if not tab then
-    return nil -- error already surfaced by Herdr.run; no safe fallback placement
-  end
-  local spare_pane = created.root_pane and created.root_pane.pane_id
-  local started = M.api(start_args(name, cwd, wrap_return(def, origin_tab), { '--tab', tab }))
-  local agent = started and started.agent
-  if agent then
-    agent.tab_id = tab
-    if spare_pane then
-      M.api({ 'pane', 'close', spare_pane })
-    end
-  end
-  return agent
+function M.spawn_native(name, cwd, def, project)
+  return M.spawn(name, cwd, def, vim.env.HERDR_WORKSPACE_ID, project .. ':' .. name)
 end
 
 --- argv to attach an nvim :terminal to a running agent's PTY (clean stream).
@@ -334,11 +306,13 @@ function M.agent_focus(target)
   M.run({ 'agent', 'focus', target }, { quiet = true })
 end
 
---- Send literal text to an agent (no Enter — review then submit).
----@param target string pane id (preferred) or unique agent name
+--- Send literal text to an agent's pane (no Enter — review then submit).
+--- `pane send-text` since 0.7.5; the old `agent send` is gone, and its
+--- replacement `agent send-keys` takes key names, not literal text.
+---@param target string pane id
 ---@param text string
 function M.agent_send(target, text)
-  M.run({ 'agent', 'send', target, text })
+  M.run({ 'pane', 'send-text', target, text })
 end
 
 --- Recent visible output of an agent's pane, as plain text — used by the

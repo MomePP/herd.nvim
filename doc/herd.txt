@@ -20,7 +20,7 @@ nvim-as-host model (in float mode).
 REQUIREMENTS                                               *herd-requirements*
 
 - Neovim >= 0.10        (uses |getregion()|)
-- herdr >= 0.7.1        on $PATH, with a running server
+- herdr >= 0.7.5        on $PATH, with a running server
                         (may be a headless daemon; nvim need not run inside
                         a herdr pane)
 
@@ -38,8 +38,12 @@ SETUP                                                           *herd.setup()*
 
 Options ~                                                       *herd-config*
 
-    tools   table<string, { cmd: string[], env?: table }>   (default: {})
+    tools   table<string, { cmd: string[], env?: table, kind?: string }>
+                                                            (default: {})
             Spawnable agents. The key is the tool name; `cmd` is the argv.
+            cmd[1] must be a herdr-supported agent kind (see
+            `herdr agent start --help`); set `kind` when it is not (e.g. a
+            wrapper binary). The rest of `cmd` is passed to the CLI natively.
 
     mode    'float'|'native'                                (default: "float")
             'float' hosts each agent in an nvim floating terminal (unchanged

@@ -91,7 +91,7 @@ quickfix list, and jumps to the first — neither has a default keymap; bind
 ## 📋 Requirements
 
 - Neovim **≥ 0.10** (uses `vim.fn.getregion()`)
-- [herdr](https://herdr.dev/docs/install/) **≥ 0.7.1** on `$PATH` (verified against 0.7.1; uses `agent attach/send`, `workspace list/create/focus`)
+- [herdr](https://herdr.dev/docs/install/) **≥ 0.7.5** on `$PATH` (verified against 0.7.5; uses the live-agent CLI facade — `agent start --kind/--pane`, `agent wait`, `pane send-text`)
 - A running herdr server — launch `herdr` as a headless daemon or in any
   terminal; nvim does **not** need to run inside a herdr pane.
 
@@ -102,6 +102,8 @@ Defaults:
 ```lua
 require('herd').setup({
   -- Spawnable agents. Key = tool name, `cmd` = argv, `env` = extra environment.
+  -- cmd[1] must be a herdr-supported agent (`herdr agent start --help` lists
+  -- the kinds); set `kind` when it isn't (e.g. a wrapper binary).
   tools = {},
 
   mode = 'float',  -- 'native' shows agents as herdr tabs instead of nvim floats
@@ -280,13 +282,13 @@ short switch/spawn list.
 | What | herdr command |
 | --- | --- |
 | discover agents | `herdr agent list` (nameless *detected* agents are skipped — herd targets by name) |
-| spawn | `herdr tab create --workspace <ws> --label <label>` → `herdr agent start <name> --tab <tab> --no-focus -- <argv>` → close the tab's spare pane so the agent fills it |
+| spawn | `herdr tab create --workspace <ws> --cwd <cwd> --label <label> [--env K=V] --no-focus` → `herdr agent start <name> --kind <kind> --pane <root-pane> [-- <native args>]` — the agent starts in the tab's root pane and fills the tab |
 | placement | float: dedicated `herd.nvim` workspace, found-or-created via `herdr workspace list/create`; native: nvim's own workspace (`$HERDR_WORKSPACE_ID`), tab labelled `<project>:<agent>` |
 | show | float: nvim float running `herdr agent attach <pane-id>`; native: `herdr agent focus <pane-id>` |
-| send selection | `herdr agent send <pane-id> <text>` |
+| send selection | `herdr pane send-text <pane-id> <text>` |
 | dashboard | float: focus the dedicated workspace (`herdr workspace focus <ws>`); native: global picker → `herdr agent focus <pane>` |
 
-In **float mode**, spawned agents are placed in a dedicated herdr workspace (default label `herd.nvim`) that lives off your project workspaces/tabs — so they never tile next to nvim when nvim runs inside a herdr session. Each agent gets its own tab there, labelled with its project, so the herdr sidebar reads `<workspace> · <project>` (herdr only renders the `· <project>` suffix with 2+ tabs). In **native mode**, agents land as sibling tabs in nvim's *own* workspace instead, labelled `<project>:<agent>` — see "Native mode" above. In both modes the tab's spare pane is closed so the agent fills the tab, and when an agent exits herd **reaps its dead tab on the next spawn** (native mode reaps only tabs carrying this project's `<project>:` label prefix).
+In **float mode**, spawned agents are placed in a dedicated herdr workspace (default label `herd.nvim`) that lives off your project workspaces/tabs — so they never tile next to nvim when nvim runs inside a herdr session. Each agent gets its own tab there, labelled with its project, so the herdr sidebar reads `<workspace> · <project>` (herdr only renders the `· <project>` suffix with 2+ tabs). In **native mode**, agents land as sibling tabs in nvim's *own* workspace instead, labelled `<project>:<agent>` — see "Native mode" above. In both modes the agent starts in the tab's root pane, so it fills the tab. When an agent exits, its pane drops back to a shell prompt and the tab stays behind: the native-mode exit watcher (`herdr agent wait`) reaps it right away — jumping back to your editor tab first if you were looking at the agent — and herd also **reaps leftover tabs on the next spawn** (native mode reaps only tabs carrying this project's `<project>:` label prefix).
 
 herd targets agents by their **pane id**, not by name: a bare tool name like `claude` is ambiguous to herdr when it also detects same-tool processes in other panes, so `attach`/`send` use the unique pane id.
 

@@ -1,8 +1,9 @@
 local M = {}
 
 ---@class herd.Tool
----@field cmd string[]                  argv to launch the CLI agent
+---@field cmd string[]                  argv to launch the CLI agent; cmd[1] must be a herdr-supported agent (`herdr agent start --help` lists the kinds), the rest are passed to it natively
 ---@field env? table<string, string>    extra environment for the agent process
+---@field kind? string                  herdr agent kind when cmd[1] isn't one (e.g. a wrapper binary); default: basename of cmd[1]
 
 ---@class herd.Keys
 ---@field toggle string|false   normal: toggle this cwd's agent float (count = slot)
