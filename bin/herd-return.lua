@@ -27,8 +27,10 @@ local function api(args)
   vim.list_extend(cmd, args)
   -- pcall: vim.system throws synchronously when the binary can't be spawned
   -- (herdr uninstalled) — a keybind must degrade silently, never stack-trace.
+  -- timeout: a wedged server must not hang the keypress; 124 lands in the
+  -- res.code ~= 0 branch below and degrades silently like any failure.
   local spawned, res = pcall(function()
-    return vim.system(cmd, { text = true }):wait()
+    return vim.system(cmd, { text = true, timeout = 3000 }):wait()
   end)
   if not spawned or res.code ~= 0 then
     return nil

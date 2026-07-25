@@ -3,6 +3,11 @@ local Config = require('herd.config')
 
 local M = {}
 
+--- The plugin is built on herdr's live-agent CLI facade (agent start
+--- --kind/--pane, pane send-text, server-side agent wait) introduced in 0.7.5;
+--- older CLIs fail with cryptic argv errors, so surface the mismatch here.
+local MIN_VERSION = '0.7.5'
+
 function M.check()
   vim.health.start('herd')
 
@@ -11,6 +16,17 @@ function M.check()
   else
     vim.health.error('`herdr` not found on $PATH', { 'Install herdr: https://herdr.dev/docs/install/' })
     return
+  end
+
+  local v = Herdr.version()
+  if not v then
+    vim.health.warn('could not determine herdr version (`herdr --version`)')
+  elseif vim.version.lt(v, MIN_VERSION) then
+    vim.health.error(('herdr %s is too old — herd.nvim requires >= %s (live-agent CLI facade)'):format(v, MIN_VERSION), {
+      'Upgrade herdr: brew upgrade herdr',
+    })
+  else
+    vim.health.ok(('herdr %s (>= %s)'):format(v, MIN_VERSION))
   end
 
   if Herdr.server_running() then

@@ -459,4 +459,36 @@ describe('herd.herdr', function()
     assert.are.equal('x', Herdr.agent_read('w6:pQ', { source = 'recent', lines = 200 }))
     Herdr.api = saved
   end)
+
+  it('run bounds the CLI call with a timeout and names a timed-out server', function()
+    local saved_system, saved_notify = vim.system, vim.notify
+    local got_opts, msg
+    ---@diagnostic disable-next-line: duplicate-set-field
+    vim.system = function(_, opts)
+      got_opts = opts
+      -- vim.system's timeout exit: killed process, code 124, empty stderr
+      return { wait = function() return { code = 124, stdout = '', stderr = '' } end }
+    end
+    ---@diagnostic disable-next-line: duplicate-set-field
+    vim.notify = function(m) msg = m end
+    assert.is_nil(Herdr.run({ 'status', 'server' }))
+    assert.are.equal(Herdr.TIMEOUT_MS, got_opts.timeout)
+    assert.truthy(msg:find('timed out', 1, true))
+    vim.system = saved_system
+    vim.notify = saved_notify
+  end)
+
+  it('version parses `herdr --version`, nil when undeterminable', function()
+    local saved = Herdr.run
+    Herdr.run = function(args)
+      assert.are.same({ '--version' }, args)
+      return 'herdr 0.7.5\n'
+    end
+    assert.are.equal('0.7.5', Herdr.version())
+    Herdr.run = function() return 'not a version' end
+    assert.is_nil(Herdr.version())
+    Herdr.run = function() return nil end -- herdr errored
+    assert.is_nil(Herdr.version())
+    Herdr.run = saved
+  end)
 end)

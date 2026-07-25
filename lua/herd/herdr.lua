@@ -3,6 +3,12 @@
 --- interactive `herdr` client is attached to.
 local M = {}
 
+--- Every synchronous CLI call blocks nvim's UI on :wait(), so it is bounded:
+--- a wedged herdr server surfaces as a timeout error instead of a frozen
+--- editor. Generous for a local-socket query. (Async calls — `agent start`'s
+--- readiness handshake — stay unbounded; they never block the UI.)
+M.TIMEOUT_MS = 5000
+
 --- Run a herdr CLI command. Returns stdout, or nil on failure.
 ---@param args string[]
 ---@param opts? { quiet?: boolean }
@@ -10,10 +16,13 @@ local M = {}
 function M.run(args, opts)
   local cmd = { 'herdr' }
   vim.list_extend(cmd, args)
-  local res = vim.system(cmd, { text = true }):wait()
+  local res = vim.system(cmd, { text = true, timeout = M.TIMEOUT_MS }):wait()
   if res.code ~= 0 then
     if not (opts or {}).quiet then
-      vim.notify('herd: ' .. (res.stderr ~= '' and res.stderr or 'herdr command failed'), vim.log.levels.ERROR)
+      -- 124 is vim.system's timeout exit: stderr is empty then, so name the cause
+      local why = res.code == 124 and 'herdr timed out (server unresponsive?)'
+        or (res.stderr ~= '' and res.stderr or 'herdr command failed')
+      vim.notify('herd: ' .. why, vim.log.levels.ERROR)
     end
     return nil
   end
@@ -68,6 +77,15 @@ end
 ---@return boolean
 function M.installed()
   return vim.fn.executable('herdr') == 1
+end
+
+--- Installed herdr version (`herdr --version` → "herdr 0.7.5"), or nil when
+--- it can't be determined. Used by :checkhealth — the plugin hard-requires
+--- the ≥ 0.7.5 live-agent CLI facade.
+---@return string?
+function M.version()
+  local out = M.run({ '--version' }, { quiet = true })
+  return out and out:match('(%d+%.%d+%.%d+)') or nil
 end
 
 --- `herdr status server` reports rc 0 in both states, so liveness is parsed.
