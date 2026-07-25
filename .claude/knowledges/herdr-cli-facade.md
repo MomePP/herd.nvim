@@ -30,6 +30,15 @@ paths are built on these; re-verify before touching them.
   `$VAR`-style probes silently fail in nushell panes).
 - New atomic `agent prompt <target> <text> [--wait --until <state>]` exists —
   candidate for replacing round-trip polling someday.
+- `--kind` values (0.7.5): pi, claude, codex, gemini, cursor, devin, agy,
+  cline, omp, mastracode, opencode, copilot, kimi, kiro, droid, amp, grok,
+  hermes, kilo, qodercli, maki. A wrapper binary whose basename isn't one of
+  these needs an explicit `herd.Tool.kind`.
+- `agent read`'s default `--source` is `recent` since 0.7.5 (was `visible`);
+  the plugin always passes `--source` explicitly, keep it that way.
+- The CLI returns a machine-readable `protocol_mismatch` error when client
+  and server versions differ — candidate for special-casing in Herdr.run's
+  error notification someday.
 - Still true from the 0.7.4 era (kept from the retired
   herdr-tab-removal-on-pane-death.md): there is NO focus-history API
   (`herdr api` = snapshot/schema only) — any "where was the user before"

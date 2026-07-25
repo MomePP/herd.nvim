@@ -47,8 +47,9 @@ release notes on major herdr upgrades — several are undocumented behavior.
   (keybind scripts). A non-zero exit does NOT throw; only spawn failure.
 - `vim.json.decode('null')` succeeds and returns `vim.NIL` (userdata);
   indexing it throws. Guard with `type(decoded) == 'table'` before
-  `.result`. (`Herdr.api` in lua/herd/herdr.lua still has the unguarded
-  pattern — known deferred hardening from the final branch review, along
-  with a missing `vim.system` timeout in bin/herd-return.lua.)
+  `.result`. (Both deferred hardenings from the final branch review are
+  done: `Herdr.api` guards the envelope, and all sync `vim.system` calls —
+  herdr.lua and bin/herd-return.lua — carry a timeout; `opts.timeout`
+  kills with SIGTERM and exits 124.)
 - `agent read <pane> --source visible --format text` returns the JSON
   envelope `result.read.text`, not raw text on stdout.
