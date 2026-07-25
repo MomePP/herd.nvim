@@ -100,6 +100,30 @@ Options ~                                                       *herd-config*
                modes herd targets agents by pane id (a bare tool name can
                be ambiguous to herdr).
 
+    send    { context: boolean|fun(ctx): string }  (default: { context = true })
+            Visual-send wrapping. true wraps the selection as a
+            "path:startline-endline:" header plus a filetype-fenced code
+            block, so the agent knows where the code lives. false sends
+            the raw selection text (pre-context behavior). A function(ctx)
+            formats it yourself, where
+            ctx = { path, ft, sline, eline, text } — build on
+            `require('herd').format_context(ctx)` if you only want to
+            append to the default shape.
+
+    reload  boolean                                       (default: true)
+            Run `checktime` when nvim regains focus — and, in float mode,
+            on leaving an agent float back to a normal buffer — so buffers
+            the agent edited on disk reload instead of going stale.
+            Respects 'autoread': silent reload when set, prompt when not.
+
+    auto_return  boolean                                  (default: true)
+            Native mode only: after focusing an agent, arm an exit watcher
+            (`herdr agent wait`) — if you are still looking at the agent's
+            pane when its process ends, focus jumps back to nvim's tab,
+            and the now-idle agent tab is reaped (unless you split it).
+            false disables both the return and the reaping. Float mode
+            auto-closes its float on agent exit regardless.
+
 ==============================================================================
 MAPPINGS                                                      *herd-mappings*
 
@@ -176,6 +200,11 @@ When nothing matches (not a herd tab, editor gone) it shows a herdr
 notification and does nothing. If the herdr server is unreachable, the
 script exits silently without error — the keybind never surfaces a failure.
 
+With `auto_return` enabled (default), going to an agent also arms an exit
+watcher: if the agent process ends while you are looking at its pane, focus
+jumps straight back to nvim's tab and the now-idle agent tab is reaped
+(see |herd-config|). Returning to nvim by hand disarms the watcher.
+
 In native mode, `:Herd dashboard` (or `keys.dashboard`) opens a picker
 over every running agent across all projects — rows read
 "dotfiles:claude_2  [working]  · dotfiles-config" — and selecting one
@@ -186,11 +215,42 @@ snacks.nvim is installed, the dashboard renders through Snacks.picker
 output); without it — or with `picker = "select"` — it falls back to
 vim.ui.select. The project picker always uses the compact vim.ui.select.
 
+Resurrect the editor ~                                       *herd-resurrect*
+
+The pane nvim runs in survives quitting nvim as an idle shell, so the agent
+keeps running and herd-return still resolves the origin tab — but plain
+herd-return would drop you on that nvim-less shell. Add `--resurrect` to
+the binding to have it offer to relaunch nvim in that same pane:
+
+>toml
+    command = "nvim -l /path/to/herd.nvim/bin/herd-return.lua --resurrect"
+<
+
+With nvim alive in the origin tab the flag changes nothing (silent focus,
+no prompt). When nvim is gone, the focused shell pane prompts
+`herd: no nvim here — resurrect? [Y/n]`: y relaunches the editor in place
+(`$HERD_EDITOR` overrides the launched command, default `nvim`; restoring
+the session is your nvim config's job — e.g. a resession/persistence
+autoload), n leaves you at the shell.
+
 ==============================================================================
 COMMANDS                                                      *herd-commands*
 
-    :Herd [toggle|select|send|dashboard]    default: toggle
+    :Herd [toggle|select|send|dashboard|diagnostics|jump]    default: toggle
     :Herd spawn <tool>
+
+    :Herd diagnostics                                    *:Herd-diagnostics*
+        Send the current buffer's LSP diagnostics to the active agent as
+        one text block — a file header, then "line:col [SEVERITY] message
+        (source)" per entry — and land in the agent to review/submit.
+        No-op with a notice when the buffer is clean. No default keymap;
+        bind `require('herd').diagnostics` if you want one.
+
+    :Herd jump                                                  *:Herd-jump*
+        Read the active agent's recent output, collect its `path:line(:col)`
+        references — existing files only, deduped — into the quickfix
+        list, and jump to the first. No default keymap; bind
+        `require('herd').jump` if you want one.
 
 ==============================================================================
 API                                                                *herd-api*
@@ -198,8 +258,22 @@ API                                                                *herd-api*
     require('herd').toggle()
     require('herd').select()
     require('herd').send()
+    require('herd').diagnostics()
+    require('herd').jump()
     require('herd').dashboard()
     require('herd').spawn(tool)
+
+Public helpers, for a custom `send.context` formatter or your own wiring:
+
+    require('herd').format_context(ctx)
+        { path, ft, sline, eline, text } → the default "path:lines" +
+        filetype-fenced block the wrapped send produces.
+    require('herd').format_diagnostics(path, diags)
+        vim.Diagnostic[] → the text block `:Herd diagnostics` sends.
+    require('herd').parse_refs(text, base)
+        Extract `path:line(:col)` references from text (relative paths
+        resolved against `base`, dead paths dropped, deduped) as quickfix
+        items { filename, lnum, col }.
 
 ==============================================================================
 HEALTH                                                          *herd-health*
