@@ -460,6 +460,20 @@ describe('herd.herdr', function()
     Herdr.api = saved
   end)
 
+  it('agent_read reports herdr truncated flag as its second return', function()
+    local saved = Herdr.api
+    Herdr.api = function() return { read = { text = 'tail', truncated = true } } end
+    local text, truncated = Herdr.agent_read('w6:pQ')
+    assert.are.equal('tail', text)
+    assert.is_true(truncated)
+
+    -- absent (herdr < 0.8.0) and explicit false both mean "nothing dropped"
+    Herdr.api = function() return { read = { text = 'all' } } end
+    local _, none = Herdr.agent_read('w6:pQ')
+    assert.is_false(none)
+    Herdr.api = saved
+  end)
+
   it('run bounds the CLI call with a timeout and names a timed-out server', function()
     local saved_system, saved_notify = vim.system, vim.notify
     local got_opts, msg
