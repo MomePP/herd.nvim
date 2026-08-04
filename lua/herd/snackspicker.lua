@@ -18,7 +18,13 @@ local function preview_content(it)
   local lines = require('herd.picker').preview_meta(it)
   if it.agent.pane_id then
     lines[#lines + 1] = string.rep('─', 40)
-    local out = require('herd.herdr').agent_read(it.agent.pane_id)
+    local out, truncated = require('herd.herdr').agent_read(it.agent.pane_id)
+    -- herdr drops the OLDEST rows when the snapshot doesn't fit, so the notice
+    -- belongs above the output: everything below it is the tail, not the whole
+    -- scrollback. Without it a clipped preview looks like the agent's full turn.
+    if truncated then
+      lines[#lines + 1] = '… older output truncated'
+    end
     vim.list_extend(lines, vim.split(out or '(no output)', '\n'))
   end
   return lines, it.agent.name

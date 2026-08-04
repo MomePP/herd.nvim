@@ -68,6 +68,34 @@ describe('herd.snackspicker', function()
     assert.are.equal('claude', set_title)
   end)
 
+  it('preview marks output whose older rows herdr dropped', function()
+    local captured
+    package.loaded['snacks.picker'] = { pick = function(opts) captured = opts end }
+    local Herdr = require('herd.herdr')
+    local saved_read = Herdr.agent_read
+    Herdr.agent_read = function() return 'tail line', true end
+
+    Spicker.open({
+      { agent = { name = 'claude', status = 'idle', cwd = '/p', pane_id = 'w6:pQ' }, label = 'claude' },
+    }, 'herd:', function() end)
+
+    local set_lines
+    captured.preview({
+      item = captured.items[1],
+      preview = {
+        reset = function() end,
+        set_lines = function(_, lines) set_lines = lines end,
+        set_title = function() end,
+      },
+    })
+    Herdr.agent_read = saved_read
+
+    local marker = vim.tbl_filter(function(l) return l:find('truncated', 1, true) end, set_lines)
+    assert.are.equal(1, #marker)
+    -- the dropped rows are the OLDER ones, so the marker sits above the output
+    assert.is_true(vim.fn.index(set_lines, marker[1]) < vim.fn.index(set_lines, 'tail line'))
+  end)
+
   it('picker.open_global routes through snacks when available', function()
     local captured
     package.loaded['snacks.picker'] = { pick = function(opts) captured = opts end }

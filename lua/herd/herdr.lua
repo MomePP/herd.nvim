@@ -375,11 +375,14 @@ end
 
 --- Recent visible output of an agent's pane, as plain text — used by the
 --- snacks picker's preview pane to show what an agent is doing.
----@param pane_id string
----@return string?
+---
+--- The second return is herdr's `truncated` flag (0.8.0+): true when older
+--- terminal rows were dropped from the snapshot, so a caller can say so
+--- instead of passing a partial buffer off as the whole story. Older herdr
+--- omits the field entirely, which reads the same as "nothing dropped".
 ---@param pane_id string
 ---@param opts? { source?: 'visible'|'recent'|'recent-unwrapped', lines?: integer }
----@return string?
+---@return string?, boolean
 function M.agent_read(pane_id, opts)
   opts = opts or {}
   local args = { 'agent', 'read', pane_id, '--source', opts.source or 'visible', '--format', 'text' }
@@ -387,7 +390,8 @@ function M.agent_read(pane_id, opts)
     vim.list_extend(args, { '--lines', tostring(opts.lines) })
   end
   local res = M.api(args, { quiet = true })
-  return res and res.read and res.read.text
+  local read = res and res.read
+  return read and read.text, (read and read.truncated) == true
 end
 
 return M
